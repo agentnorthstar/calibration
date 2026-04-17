@@ -541,5 +541,29 @@ Threshold_s2=1.04 is the minimum required to detect the Heimdall/Bor Incident (s
 
 ---
 
+---
+
+## Entry #018 — April 17, 2026 — M1 reconciliation with formula v0.1
+
+**Type:** Audit reconciliation — M1 values
+**Trigger:** Implementation of `m1_eth.py` and `m1_pol.py` (formula §10.1) revealed that M1 values in prior entries (#008, #009, #017) were session manual estimates, not formula outputs.
+
+**Findings:**
+- ETH M1 = **5.07** ✅ — confirmed by `m1_eth.py` · formula validated bilaterally (The Merge max=1.1548, p50=0.9993, bruit=0.0307)
+- POL M1 = **7.37** (Entry #017) — session manual estimate, not reproduced by formula v0.1
+- POL formula-v0.1 outputs (via `m1_pol.py`):
+  - τ (rhythm_ratio) · best event: Reorg Storm → **M1 = 10.66**
+  - π (sigma_ratio)  · best event: Gas Crisis   → **M1 = 4.55**
+
+**Decision:**
+- `methodology.md §10.3` updated to per (signal × event) table with formula-v0.1 values
+- Scalar POL M1=7.37 retired from methodology — replaced by τ=10.66 / π=4.55
+- Entries #008, #009, #017 remain historically accurate for calibration parameters; M1 values in those entries are session estimates, not formula outputs
+- `AgentNorthStar.com` registry updated to show formula-v0.1 M1 values
+
+**Note:** M1 divergence between signals (τ=10.66 vs π=4.55) reflects structural difference: rhythm_ratio on POL is much tighter (bruit=2.36%) than sigma_ratio (bruit=24.2%) due to Polygon's volatile gas history 2020–2022. Both values are above 1.0 → calibration usable for both signals.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries — additions at end of file only.*

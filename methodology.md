@@ -715,23 +715,27 @@ M1_calculé   : 0.1556 / 0.0307 = 5.07  ✅  (valeur publiée : 5.05)
 - **Dormant** : signal constant par design (ex: ARB τ — sequencer régulier). M1 non calculable.
 - **Observational** : données insuffisantes pour calibration (ex: Bridge BS2 pré-Phase 2C).
 
-### 10.3 Valeurs publiées (MEDIUM event-based uniquement)
+### 10.3 Valeurs publiées — formula v0.1 (scripts/m1_*.py)
 
-| Chaîne | Signal | M1 | Méthode | Confidence |
-|--------|--------|-----|---------|------------|
-| **Ethereum** | τ (rho_ts) | **5.07** | Event-based · The Merge max=1.155 | **MEDIUM event-based** |
-| **Polygon** | π (rho_s) | **7.37** | Event-based · Gas Crisis max=2.10 | **MEDIUM event-based** |
-| Solana | τ | — | Backtest τ validé — M1 pending calcul avec formule v0.1 | LOW — non publié |
-| Avalanche | τ | — | Calibration event-based pending (juillet 2026) | LOW — non publié |
-| Arbitrum | τ/π | — | Dormant (sequencer régulier par design) | Dormant |
-| Base | π | — | Phase D pending (Q2-Q3 2026) | Observational |
-| Optimism | π | — | Phase D pending (Q2-Q3 2026) | Observational |
+| Chaîne | Signal | Événement | M1 | Script | Confidence |
+|--------|--------|-----------|----|--------|------------|
+| **Ethereum** | τ (rhythm_ratio) | The Merge (2022-09) | **5.07** | `m1_eth.py` ✅ | **MEDIUM event-based** |
+| **Polygon** | τ (rhythm_ratio) | Reorg Storm (2023-02) | **10.66** | `m1_pol.py` ✅ | **MEDIUM event-based** |
+| **Polygon** | π (sigma_ratio) | Gas Crisis (2021-05) | **4.55** | `m1_pol.py` ✅ | **MEDIUM event-based** |
+| Solana | τ | — | — | Script pending | LOW — non publié |
+| Avalanche | τ | — | — | Calibration event-based pending (juillet 2026) | LOW — non publié |
+| Arbitrum | τ/π | — | — | Dormant (sequencer régulier par design) | Dormant |
+| Base | π | — | — | Phase D pending (Q2-Q3 2026) | Observational |
+| Optimism | π | — | — | Phase D pending (Q2-Q3 2026) | Observational |
 
-> Formule validée le 17 Avril 2026 sur données BigQuery ETH (34 697 fenêtres).
-> **Note :** les valeurs précédemment publiées sur AgentNorthStar.com (ETH=5.05, POL=8.06)
-> étaient des estimations manuelles. Les valeurs recalculées avec la formule formalisée
-> sont ETH=5.07 et POL=7.37. Mise à jour ANS registry pending.
-> Seules les valeurs MEDIUM event-based sont publiées ici.
+> Toutes les valeurs M1 ci-dessus sont produites par les scripts `m1_*.py` (formule v0.1).
+> Reproductibles indépendamment depuis BigQuery.
+>
+> **Note historique :** les valeurs précédemment publiées sur AgentNorthStar.com (ETH=5.05, POL=8.06)
+> étaient des estimations manuelles antérieures à la formalisation de la formule.
+> La valeur POL=7.37 (calibration_log #017) était également une estimation de session —
+> elle n'est pas reproductible par la formule v0.1. Les valeurs traçables sont celles du tableau ci-dessus.
+> ANS registry mise à jour le 17 Avril 2026 (voir Entry #018).
 
 ### 10.4 Protocole de recalcul
 
