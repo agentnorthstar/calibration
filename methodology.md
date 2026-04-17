@@ -668,7 +668,7 @@ BS* = état opérationnel du canal
 
 ## 10. M1 — Metric Stability Score
 
-> **Statut :** formule en cours de formalisation — valeurs publiées sur AgentNorthStar.com, calcul documenté ici dès validation.
+> **Statut :** formule v0.1 validée — session calibration 17 avril 2026. Implémentation script dédiée pending (`m1_*.py` — voir scripts/README.md).
 
 M1 quantifie la **fiabilité calibratoire** d'un signal sur une chaîne donnée.
 Il répond à la question : *ce signal est-il suffisamment discriminant pour produire
@@ -721,7 +721,7 @@ M1_calculé   : 0.1556 / 0.0307 = 5.07  ✅  (valeur publiée : 5.05)
 |--------|--------|-----|---------|------------|
 | **Ethereum** | τ (rho_ts) | **5.07** | Event-based · The Merge max=1.155 | **MEDIUM event-based** |
 | **Polygon** | π (rho_s) | **7.37** | Event-based · Gas Crisis max=2.10 | **MEDIUM event-based** |
-| Solana | τ | — | Backtest τ validé — M1 pending formalisation complète | LOW — non publié |
+| Solana | τ | — | Backtest τ validé — M1 pending calcul avec formule v0.1 | LOW — non publié |
 | Avalanche | τ | — | Calibration event-based pending (juillet 2026) | LOW — non publié |
 | Arbitrum | τ/π | — | Dormant (sequencer régulier par design) | Dormant |
 | Base | π | — | Phase D pending (Q2-Q3 2026) | Observational |

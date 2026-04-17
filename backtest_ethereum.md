@@ -16,7 +16,10 @@ backtest_events_negative: 2
 backtest_events_total: 4
 backtest_latency_merge_h: 18.3
 threshold_s2_validated: 1.12
-threshold_d2_validated: 1.10
+d2_logic: "2_of_3"
+threshold_d2_sigma: 1.10
+threshold_d2_size: 1.20
+threshold_d2_tx: 1.10
 threshold_d2_pending: false
 confidence_s2: MEDIUM
 confidence_d2: MEDIUM
@@ -24,7 +27,7 @@ confidence_d2: MEDIUM
 
 # Backtest Ethereum — 2020–2024
 
-> **Status:** validated — threshold_s2=1.12 and threshold_d2=1.10 validated. Combined FPR=1.23%.
+> **Status:** validated — threshold_s2=1.12 and 2-of-3 D2 logic (σ=1.10, size=1.20, tx=1.10) validated. Combined FPR=1.23%.
 
 ---
 
