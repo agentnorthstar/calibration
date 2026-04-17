@@ -198,7 +198,7 @@ ORACLE
 |--------|-------------|-------------------|-------|------------|--------|
 | **Ethereum** | **1.12** | The Merge (sept 2022) · Shanghai Upgrade (avril 2023) | 0.38% | **MEDIUM event-based** | ✅ publié |
 | **Polygon** | **1.04** | Network Halt · Gas Crisis · Heimdall/Bor · Reorg Storm (2021–2023) | 11.75% | **MEDIUM event-based** | ✅ publié |
-| Solana τ | en cours | Backtest outages — données mi-juin 2026 | — | pending | ⏳ |
+| **Solana** | **1.12** | 4 major outages (Sept 2021 · Jan 2022 · May 2022 · Oct 2022) | 1.77% | **MEDIUM event-based** | ✅ publié |
 | Avalanche τ | en cours | Calibration event-based juillet 2026 | — | pending | ⏳ |
 | Arbitrum τ | Dormant | Sequencer régulier par design — signal non discriminant | — | Dormant | — |
 | Base τ | Dormant | Sequencer régulier par design | — | Dormant | — |

@@ -517,6 +517,9 @@ Selected target: **~3% D2 (P97 over 30d)** — consistent with L1 FPR accounting
 - `rhythm_p90 = 1.04` · `sigma_demand = 1.14` · `size_demand = 1.18` · `tx_demand = 1.23`
 - FPR combined = 11.75% · Events = 4/4 · M1 = 7.37
 
+**Note on Heimdall/Bor reconsidered vs calibration_log #008/#009:**
+Entry #008 classified Heimdall/Bor (Jan 2023) as "out of instrument scope — no measurable signal at τ=1.12". This assessment was correct for v1: the rho_ts peak during this incident reaches only ~1.04, below the v1 threshold of 1.12. At τ=1.04 (v2), the same signal is just above threshold → detectable → TP. The reconsideration is a direct consequence of the threshold change, not a data revision. Entries #008 and #009 remain historically accurate for v1.
+
 **Ground truth events (v2):**
 
 | Event | Date | Type | Detected | Latency |

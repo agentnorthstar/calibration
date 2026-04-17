@@ -24,7 +24,7 @@ confidence_d2: MEDIUM
 
 # Backtest Ethereum — 2020–2024
 
-> **Status:** review — threshold_s2=1.12 and threshold_d2=1.10 validated. Combined FPR=0.99%.
+> **Status:** validated — threshold_s2=1.12 and threshold_d2=1.10 validated. Combined FPR=1.23%.
 
 ---
 

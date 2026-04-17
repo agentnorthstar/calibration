@@ -3,6 +3,8 @@
 These scripts allow **independent reproduction** of Invarians backtests
 from public BigQuery data.
 
+> **Scope:** These scripts reproduce TPR/FPR results and threshold sweeps. The **M1 Stability Score** (methodology section 10.1) is computed separately and is not integrated in the current sweep scripts. Running `sweep_eth.py` will reproduce FPR=1.23% and TPR=100% (4/4) for ETH — not the M1 value of 5.07. A dedicated `m1_*.py` script is planned for a future release.
+
 ---
 
 ## Prerequisites

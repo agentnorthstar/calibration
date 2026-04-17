@@ -1,5 +1,7 @@
 # Invarians — Composite Signal: Arbitrum, June 20, 2024 (post-Dencun)
 
+> **Notation note (April 2026):** This case study was written before the architectural pivot of March 2026. L2 states are labeled here using the L1 SxDx notation (S1D1, S1D2, etc.) for readability. Since methodology v0.3, L2 uses a distinct framework (π, μ, σ) — L2 S2Dx no longer exists by design (τ is dormant on L2). The data and conclusions of this case study remain valid; only the state labels differ from current methodology notation.
+
 > **Result**: Invarians detected a multi-layer Arbitrum degradation:
 > L2 under pressure from 10:00 to 17:00 UTC (S1D2 — L2 basefee up to 16.49 gwei),
 > followed by a Bridge blob posting gap at 16:00 UTC (BS2 — 12.8min vs 1.03min normal).

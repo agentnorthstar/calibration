@@ -95,13 +95,15 @@ period: "2020-06-01 → 2023-12-31"
 | 1.12 | 15.74% | ✅ |
 | 1.20 | 12.34% | ✅ |
 
-Cross sweep (sigma × size × tx) — best tradeoff detecting all 4 events:
+Cross sweep (sigma × size × tx) — best sweep point detecting all 4 events:
 
 | sigma | size | tx | FPR | Events |
 |---|---|---|---|---|
 | 1.12 | 1.25 | 1.25 | 11.15% | 4/4 ✅ |
 
-**Selected π parameters: `sigma=1.12 / size=1.25 / tx=1.25`** (combined FPR ~11.15%).
+**Production π parameters (refined from sweep): `sigma=1.14 / size=1.18 / tx=1.23`** (combined FPR 11.75%).
+
+> Note: sweep optimum is 1.12/1.25/1.25. Production values (1.14/1.18/1.23) are a conservative refinement — tighter on σ (more sensitive), narrower on size/tx (less aggressive). Combined FPR is nearly identical (11.75% vs 11.15%); all 4 events detected. See section 7 for final validated parameters.
 
 ---
 
