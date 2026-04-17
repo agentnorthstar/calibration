@@ -1,277 +1,277 @@
-# Invarians — Journal de Calibration
+# Invarians — Calibration Log
 
-**Format :** entrées chronologiques, immuables.
-Chaque reset EMA, incident, ou changement de paramètre est documenté ici avec sa justification.
+**Format:** chronological entries, immutable.
+Each EMA reset, incident, or parameter change is documented here with its rationale.
 
 ---
 
-## Entrée #001 — 14 Mars 2026 — Démarrage production L2
+## Entry #001 — March 14, 2026 — L2 production start
 
-**Type :** Initialisation
-**Chaînes :** arbitrum, base, optimism
-**Action :** Premiers invariants L2 produits. Baselines EMA initialisées à partir du premier invariant.
-**Paramètres initiaux :**
+**Type:** Initialization
+**Chains:** arbitrum, base, optimism
+**Action:** First L2 invariants produced. EMA baselines initialized from the first invariant.
+**Initial parameters:**
 - EMA_ALPHA = 2/11 ≈ 0.1818 (~10h)
-- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30j)
-- Seuil S2 : rhythm_ratio > 1.15
-- Seuil D2 : sigma_ratio > 1.20
-**Statut baselines :** non calibrées — valeurs initiales arbitraires
-**Confiance :** LOW
+- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30d)
+- S2 threshold: rhythm_ratio > 1.15
+- D2 threshold: sigma_ratio > 1.20
+**Baseline status:** not calibrated — arbitrary initial values
+**Confidence:** LOW
 
 ---
 
-## Entrée #002 — 15 Mars 2026 — Incident Arbitrum : race condition
+## Entry #002 — March 15, 2026 — Arbitrum incident: race condition
 
-**Type :** Incident → Fix déploiement
-**Chaîne :** arbitrum
-**Symptôme :** buffer figé à 2/14400, aucun invariant produit après seq=10.
-**Root cause :** throttle 30s avec beta=120 → advance rate 4 blocs/s > taux chaîne 3.8 blocs/s.
-**Fix :** throttle 30s → 38s. Advance rate 3.16 blocs/s < 3.8 blocs/s.
-**Impact EMA :** baselines partiellement contaminées par les quelques invariants produits avant l'incident.
-**Action corrective :** aucun reset nécessaire (peu de données contaminées, séquence courte).
-**Confiance post-fix :** LOW → à réévaluer après 30j
-
----
-
-## Entrée #003 — 16 Mars 2026 — Incident BASE/OPTIMISM : miroir rho_ts/c_s
-
-**Type :** Incident structurel → Fix déploiement
-**Chaînes :** base, optimism
-**Symptôme :** rhythm_ratio=4.62, continuity_ratio=0.21 → classifiés S2 en permanence. Evolution en miroir strict des deux signaux.
-**Root cause :**
-1. Race condition : throttle 100s avec beta=50 → advance rate 0.5 blocs/s = taux exact de la chaîne.
-2. Insight physique : pour chaînes à block time fixe 2s, `rho_ts × c_s/100 ≈ 2s = constante` → signaux mathématiquement inverses.
-**Fix :** throttle 100s → 110s. Advance rate 0.4545 blocs/s < 0.5 blocs/s.
-**Impact EMA :** 2 semaines de baselines contaminées (c_s≈58%, rho_ts≈5s au lieu de c_s≈100%, rho_ts≈2s).
-**Action corrective requise :** DELETE FROM ans_l2_rollup_signals WHERE chain IN ('base','optimism') après premier invariant propre.
-**Critère validation :** c_s > 90% ET rho_ts < 2.5s sur la ligne la plus récente.
-**Statut :** ⏳ En attente validation premier invariant propre.
-**Note design :** c_s est un signal redondant pour Base et Optimism. À terme, n'utiliser que rho_ts ou rho_s pour ces chaînes.
+**Type:** Incident → Deployment fix
+**Chain:** arbitrum
+**Symptom:** buffer frozen at 2/14400, no invariant produced after seq=10.
+**Root cause:** 30s throttle with beta=120 → advance rate 4 blocks/s > chain rate 3.8 blocks/s.
+**Fix:** throttle 30s → 38s. Advance rate 3.16 blocks/s < 3.8 blocks/s.
+**EMA impact:** baselines partially contaminated by the few invariants produced before the incident.
+**Corrective action:** no reset required (little contaminated data, short sequence).
+**Post-fix confidence:** LOW → to reassess after 30d
 
 ---
 
-## Entrée #004 — 16 Mars 2026 — Reset EMA BASE/OPTIMISM
+## Entry #003 — March 16, 2026 — BASE/OPTIMISM incident: rho_ts/c_s mirror
 
-**Type :** Reset EMA
-**Chaînes :** base, optimism
-**Trigger :** Premier invariant post-fix — critère validé :
-- base : seq=20, c_s=100, rho_ts=1.9989s ✅
-- optimism : seq=21, c_s=100, rho_ts=1.9989s ✅
-**Action :** `DELETE FROM ans_l2_rollup_signals WHERE chain IN ('base','optimism')`
-**Effet :** Baselines réinitialisées sur données propres. Convergence EMA rapide en ~5 invariants (~5h).
-**Résultat attendu :** Divergence ANOMALIE/ELEVATED → NOMINAL sous ~5h.
-**Statut :** ✅ Exécuté — 16 Mars 2026
-
----
-
----
-
-## Entrée #005 — 16 Mars 2026 — Calibration ETH τ (threshold_s2)
-
-**Type :** Calibration paramètre
-**Chaîne :** ethereum (L1)
-**Méthode :** Backtest event-detection sur BigQuery `bigquery-public-data.crypto_ethereum.blocks`, fenêtre 2020-01-01 → 2024-01-01, 34 697 invariants, Φ=280 blocs (~1h).
-**Ancienne valeur :** `rhythm_p90 = 1.0073` (percentile P90 empirique — arbitraire)
-**Nouvelle valeur :** `rhythm_p90 = 1.12` (event-detection validé)
-**Justification :**
-- FPR = 2.50% à threshold_s2=1.12 (vs 10.56% à 1.05)
-- Détecte The Merge (15 sept 2022, latence +18.3h) ✅ et Shanghai Upgrade (12 avril 2023) ✅
-- Non-détection DeFi Summer / NFT Mania : **correct** — stress τ absent, infrastructure nominale
-- Plancher FPR à 2.12% au-delà de 1.18 : causé par D2 noise, pas par τ
-**Signal :** rho_ts / EMA(rho_ts), alpha=2/11 (~10h)
-**TPR :** 100% sur événements structurels connus (n=2)
-**FPR τ seul :** 2.50%
-**Confiance :** MEDIUM
-**Déployé :** Supabase project `sdpilypwumxsyyipceew`, 16 Mars 2026
-**Script :** BIGDATA/sweep_eth.py
+**Type:** Structural incident → Deployment fix
+**Chains:** base, optimism
+**Symptom:** rhythm_ratio=4.62, continuity_ratio=0.21 → permanently classified S2. Strict mirror evolution of both signals.
+**Root cause:**
+1. Race condition: 100s throttle with beta=50 → advance rate 0.5 blocks/s = exact chain rate.
+2. Physical insight: for chains with fixed 2s block time, `rho_ts × c_s/100 ≈ 2s = constant` → mathematically inverse signals.
+**Fix:** throttle 100s → 110s. Advance rate 0.4545 blocks/s < 0.5 blocks/s.
+**EMA impact:** 2 weeks of contaminated baselines (c_s≈58%, rho_ts≈5s instead of c_s≈100%, rho_ts≈2s).
+**Required corrective action:** DELETE FROM ans_l2_rollup_signals WHERE chain IN ('base','optimism') after first clean invariant.
+**Validation criterion:** c_s > 90% AND rho_ts < 2.5s on the most recent row.
+**Status:** ⏳ Pending validation of first clean invariant.
+**Design note:** c_s is a redundant signal for Base and Optimism. In the long run, use only rho_ts or rho_s for these chains.
 
 ---
 
-## Entrée #006 — 16 Mars 2026 — Calibration ETH π (D2 thresholds)
+## Entry #004 — March 16, 2026 — EMA reset BASE/OPTIMISM
 
-**Type :** Calibration paramètre
-**Chaîne :** ethereum (L1)
-**Méthode :** Sweep sigma seul (sweep_eth_d2.py) puis sweep D2 complet size × tx (sweep_eth_d2_full.py). Logique production : D2 si 2 dims sur 3 (sigma, size, tx) au-dessus de leur seuil.
-**Anciennes valeurs :** `sigma_demand=1.0154`, `size_demand=1.2002`, `tx_demand=1.1430` (percentiles P95 empiriques)
-**Nouvelles valeurs :**
-- `sigma_demand = 1.10` (sweep sigma seul, FPR π = 0.99%)
-- `size_demand = 1.20` (sweep D2 full, FPR combiné τ+π = 1.23%)
-- `tx_demand = 1.10` (sweep D2 full, gagne DeFi Summer S1D2 + NFT Mania S1D2)
-**Justification :**
-- FPR combiné (τ+π) = 1.23% — objectif < 1.5% atteint
-- TPR 4/4 événements : The Merge ✅, Shanghai ✅, DeFi Summer ✅ (S1D2), NFT Mania ✅ (S1D2)
-- DeFi Summer / NFT Mania détectables via size+tx multi-signal même si sigma stable (EIP-1559 stabilise rho_s) : **S1D2 = infrastructure saine, demande élevée** — comportement correct
-- c_s exclu (100% constant sur ETH, aucune variance exploitable)
-**Insight :** EIP-1559 stabilise sigma_ratio → sigma seul insuffisant pour détecter surcharges économiques. La combinaison size+tx capture la demande réelle.
-**Logique D2 :** 2 of 3 dims ≥ seuil respectif
-**TPR :** 100% (4/4 événements ground truth)
-**FPR combiné :** 1.23%
-**Confiance :** MEDIUM
-**Déployé :** Supabase project `sdpilypwumxsyyipceew`, 16 Mars 2026
-**Script :** BIGDATA/sweep_eth_d2.py + BIGDATA/sweep_eth_d2_full.py
+**Type:** EMA Reset
+**Chains:** base, optimism
+**Trigger:** First post-fix invariant — criterion validated:
+- base: seq=20, c_s=100, rho_ts=1.9989s ✅
+- optimism: seq=21, c_s=100, rho_ts=1.9989s ✅
+**Action:** `DELETE FROM ans_l2_rollup_signals WHERE chain IN ('base','optimism')`
+**Effect:** Baselines re-initialized on clean data. Fast EMA convergence in ~5 invariants (~5h).
+**Expected result:** Divergence ANOMALY/ELEVATED → NOMINAL within ~5h.
+**Status:** ✅ Executed — March 16, 2026
 
 ---
 
 ---
 
-## Entrée #007 — 16 Mars 2026 — Calibration Solana τ (rhythm_p90 + continuity_p10)
+## Entry #005 — March 16, 2026 — ETH τ calibration (threshold_s2)
 
-**Type :** Calibration paramètre
-**Chaîne :** solana (L1)
-**Méthode :** Backtest event-detection sur BigQuery `bigquery-public-data.crypto_solana_mainnet_us.Blocks`, fenêtre 2021-01-01 → 2024-01-01, 128 365 fenêtres, Φ=800 slots (~5.3 min).
-**Schéma BigQuery disponible :** slot, block_hash, block_timestamp, height — pas de transaction_count.
+**Type:** Parameter calibration
+**Chain:** ethereum (L1)
+**Method:** Event-detection backtest on BigQuery `bigquery-public-data.crypto_ethereum.blocks`, window 2020-01-01 → 2024-01-01, 34,697 invariants, Φ=280 blocks (~1h).
+**Previous value:** `rhythm_p90 = 1.0073` (empirical P90 percentile — arbitrary)
+**New value:** `rhythm_p90 = 1.12` (event-detection validated)
+**Rationale:**
+- FPR = 2.50% at threshold_s2=1.12 (vs 10.56% at 1.05)
+- Detects The Merge (Sept 15, 2022, latency +18.3h) ✅ and Shanghai Upgrade (April 12, 2023) ✅
+- Non-detection of DeFi Summer / NFT Mania: **correct** — τ stress absent, nominal infrastructure
+- FPR floor at 2.12% beyond 1.18: caused by D2 noise, not by τ
+**Signal:** rho_ts / EMA(rho_ts), alpha=2/11 (~10h)
+**TPR:** 100% on known structural events (n=2)
+**FPR τ only:** 2.50%
+**Confidence:** MEDIUM
+**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Script:** BIGDATA/sweep_eth.py
 
-**rhythm_p90 :**
-- Ancienne valeur : `1.0340` (P90 empirique — 90j production)
-- Nouvelle valeur : `1.12` (event-detection validé)
-- Sweep 1.01→1.20 : 1.12 = dernier seuil détectant les 4 outages. Au-delà : Outage Mai 2022 perdu à 1.15.
-- TPR τ : 100% (4/4 outages structurels)
-- FPR τ : 1.77% — légèrement > 1.5% cible, inhérent à la volatilité Solana
-- Latences : Outage Sept 2021 +6.7h, Jan 2022 +1.4h, Mai 2022 +15.9h, Oct 2022 +12.5h
+---
 
-**continuity_p10 :**
-- Ancienne valeur : `0.9530` (P10 production — catastrophiquement trop haut)
-- Nouvelle valeur : `null` (désactivé)
-- Justification : c_s suit une distribution très large sur Solana (p10=0.775, p50=0.911, p90=0.972). Le skip rate est inhérent au protocole — même en conditions normales, c_s descend régulièrement à 77%. La valeur 0.9530 dépassait le p50 naturel → 75% FPR. Signal non discriminant comme trigger d'alarme.
-- Note : rhythm_ratio=1.12 couvre déjà les cas d'outage complet (c_s très bas → rho_ts spike → rhythm_ratio >> 1.12).
+## Entry #006 — March 16, 2026 — ETH π calibration (D2 thresholds)
 
-**π (demande) :** ⚠️ DETTE TECHNIQUE — non calibré.
-- BigQuery `crypto_solana_mainnet_us.Blocks` ne contient pas `transaction_count`.
-- sigma/size/tx restent aux valeurs P90 initiales (confidence: LOW).
-- Source prévue : données internes `ans_invariants_v3`, capteur `size_avg` fixé le 14 Mars 2026.
-- **Cible : juillet 2026** (après 90 jours de production propre, ~mi-juin 2026 → traitement juillet).
-- Blocker : à traiter avant toute approche commerciale sur Solana.
-
-**Confiance τ :** MEDIUM
-**Déployé :** Supabase project `sdpilypwumxsyyipceew`, 16 Mars 2026
-**Scripts :** BIGDATA/backtest_sol.py + BIGDATA/sweep_sol.py
+**Type:** Parameter calibration
+**Chain:** ethereum (L1)
+**Method:** Sigma-only sweep (sweep_eth_d2.py) then full D2 sweep size × tx (sweep_eth_d2_full.py). Production logic: D2 if 2 dims out of 3 (sigma, size, tx) above their threshold.
+**Previous values:** `sigma_demand=1.0154`, `size_demand=1.2002`, `tx_demand=1.1430` (empirical P95 percentiles)
+**New values:**
+- `sigma_demand = 1.10` (sigma-only sweep, FPR π = 0.99%)
+- `size_demand = 1.20` (full D2 sweep, combined FPR τ+π = 1.23%)
+- `tx_demand = 1.10` (full D2 sweep, gains DeFi Summer S1D2 + NFT Mania S1D2)
+**Rationale:**
+- Combined FPR (τ+π) = 1.23% — objective < 1.5% achieved
+- TPR 4/4 events: The Merge ✅, Shanghai ✅, DeFi Summer ✅ (S1D2), NFT Mania ✅ (S1D2)
+- DeFi Summer / NFT Mania detectable via size+tx multi-signal even if sigma is stable (EIP-1559 stabilizes rho_s): **S1D2 = healthy infrastructure, elevated demand** — correct behavior
+- c_s excluded (100% constant on ETH, no exploitable variance)
+**Insight:** EIP-1559 stabilizes sigma_ratio → sigma alone insufficient to detect economic overloads. The size+tx combination captures real demand.
+**D2 logic:** 2 of 3 dims ≥ respective threshold
+**TPR:** 100% (4/4 ground truth events)
+**Combined FPR:** 1.23%
+**Confidence:** MEDIUM
+**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Script:** BIGDATA/sweep_eth_d2.py + BIGDATA/sweep_eth_d2_full.py
 
 ---
 
 ---
 
-## Entrée #008 — 17 Mars 2026 — Calibration Polygon τ (rhythm_p90)
+## Entry #007 — March 16, 2026 — Solana τ calibration (rhythm_p90 + continuity_p10)
 
-**Type :** Calibration paramètre
-**Chaîne :** polygon (L1)
-**Méthode :** Backtest event-detection sur BigQuery `bigquery-public-data.crypto_polygon.blocks`,
-  fenêtre 2020-10-01 → 2023-12-31, 25 906 invariants, Φ=1800 blocs (~1h).
-  Données early Polygon (juin-sept 2020, gas/tx=0) exclues — démarrage propre à partir de 2020-10-01.
-**Ancienne valeur :** `rhythm_p90 = 1.04034` (P90 empirique — arbitraire)
-**Nouvelle valeur :** `rhythm_p90 = 1.12` (event-detection validé)
-**Justification :**
-- FPR τ pur = 0.78% à threshold_s2=1.12
-- Détecte Reorg Storm Fév 2023 (rho_ts peak=1.2509, latence +20.1h) ✅
-- Network Halt Mars 2021 non capturé via τ (rho_ts max ~1.08 — signal faible), mais capturé via π ✅
-- Heimdall/Bor Jan 2023 : pas de signal τ ni π mesurable (incident consensus/finality, hors scope instrument)
-- c_s p10=1.000 → continuity_p10 = null confirmé
-**Signal :** rho_ts / EMA(rho_ts), alpha=2/11 (~10h)
-**Événement canonique τ :** Reorg Storm Fév 2023 — 157 blocs reorg, rho_ts disruption claire
-**TPR τ :** 1/1 événements τ détectables
-**FPR τ :** 0.78%
-**Confiance :** MEDIUM
-**Déployé :** Supabase project `sdpilypwumxsyyipceew`, 17 Mars 2026
-**Script :** BIGDATA/sweep_pol.py
+**Type:** Parameter calibration
+**Chain:** solana (L1)
+**Method:** Event-detection backtest on BigQuery `bigquery-public-data.crypto_solana_mainnet_us.Blocks`, window 2021-01-01 → 2024-01-01, 128,365 windows, Φ=800 slots (~5.3 min).
+**Available BigQuery schema:** slot, block_hash, block_timestamp, height — no transaction_count.
+
+**rhythm_p90:**
+- Previous value: `1.0340` (empirical P90 — 90d production)
+- New value: `1.12` (event-detection validated)
+- Sweep 1.01→1.20: 1.12 = last threshold detecting all 4 outages. Beyond that: Outage May 2022 lost at 1.15.
+- TPR τ: 100% (4/4 structural outages)
+- FPR τ: 1.77% — slightly > 1.5% target, inherent to Solana volatility
+- Latencies: Outage Sept 2021 +6.7h, Jan 2022 +1.4h, May 2022 +15.9h, Oct 2022 +12.5h
+
+**continuity_p10:**
+- Previous value: `0.9530` (P10 production — catastrophically too high)
+- New value: `null` (disabled)
+- Rationale: c_s follows a very wide distribution on Solana (p10=0.775, p50=0.911, p90=0.972). The skip rate is inherent to the protocol — even under normal conditions, c_s regularly drops to 77%. The value 0.9530 exceeded the natural p50 → 75% FPR. Signal non-discriminating as an alarm trigger.
+- Note: rhythm_ratio=1.12 already covers complete outage cases (very low c_s → rho_ts spike → rhythm_ratio >> 1.12).
+
+**π (demand):** ⚠️ TECHNICAL DEBT — not calibrated.
+- BigQuery `crypto_solana_mainnet_us.Blocks` does not contain `transaction_count`.
+- sigma/size/tx remain at initial P90 values (confidence: LOW).
+- Planned source: internal data `ans_invariants_v3`, sensor `size_avg` fixed March 14, 2026.
+- **Target: July 2026** (after 90 days of clean production, ~mid-June 2026 → processing July).
+- Blocker: to address before any commercial approach on Solana.
+
+**Confidence τ:** MEDIUM
+**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Scripts:** BIGDATA/backtest_sol.py + BIGDATA/sweep_sol.py
 
 ---
 
-## Entrée #009 — 17 Mars 2026 — Calibration Polygon π (D2 thresholds)
+---
 
-**Type :** Calibration paramètre
-**Chaîne :** polygon (L1)
-**Méthode :** Sweep D2 complet sigma × size × tx (grille 7×7×7 + candidats équilibrés ciblés).
-  Logique production : D2 si 2 dims sur 3 (sigma, size, tx) au-dessus de leur seuil.
-**Anciennes valeurs :** `sigma_demand=1.13594`, `size_demand=1.17667`, `tx_demand=1.23474` (P95 empiriques)
-**Nouvelles valeurs :**
+## Entry #008 — March 17, 2026 — Polygon τ calibration (rhythm_p90)
+
+**Type:** Parameter calibration
+**Chain:** polygon (L1)
+**Method:** Event-detection backtest on BigQuery `bigquery-public-data.crypto_polygon.blocks`,
+  window 2020-10-01 → 2023-12-31, 25,906 invariants, Φ=1800 blocks (~1h).
+  Early Polygon data (June–Sept 2020, gas/tx=0) excluded — clean start from 2020-10-01.
+**Previous value:** `rhythm_p90 = 1.04034` (empirical P90 — arbitrary)
+**New value:** `rhythm_p90 = 1.12` (event-detection validated)
+**Rationale:**
+- Pure FPR τ = 0.78% at threshold_s2=1.12
+- Detects Reorg Storm Feb 2023 (rho_ts peak=1.2509, latency +20.1h) ✅
+- Network Halt March 2021 not captured via τ (rho_ts max ~1.08 — weak signal), but captured via π ✅
+- Heimdall/Bor Jan 2023: no measurable τ or π signal (consensus/finality incident, out of instrument scope)
+- c_s p10=1.000 → continuity_p10 = null confirmed
+**Signal:** rho_ts / EMA(rho_ts), alpha=2/11 (~10h)
+**Canonical τ event:** Reorg Storm Feb 2023 — 157-block reorg, clear rho_ts disruption
+**TPR τ:** 1/1 detectable τ events
+**FPR τ:** 0.78%
+**Confidence:** MEDIUM
+**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 17, 2026
+**Script:** BIGDATA/sweep_pol.py
+
+---
+
+## Entry #009 — March 17, 2026 — Polygon π calibration (D2 thresholds)
+
+**Type:** Parameter calibration
+**Chain:** polygon (L1)
+**Method:** Full D2 sweep sigma × size × tx (7×7×7 grid + targeted balanced candidates).
+  Production logic: D2 if 2 dims out of 3 (sigma, size, tx) above their threshold.
+**Previous values:** `sigma_demand=1.13594`, `size_demand=1.17667`, `tx_demand=1.23474` (empirical P95)
+**New values:**
 - `sigma_demand = 1.50` (p99 σ=1.394 → ratio +7.6%)
 - `size_demand  = 1.40` (p99 sz=1.318 → ratio +6.2%)
 - `tx_demand    = 1.60` (p99 tx=1.457 → ratio +9.8%)
-**Justification :**
-- FPR combiné (τ+π) = 1.20% — objectif < 1.5% atteint
-- TPR 3/3 événements :
-  - Network Halt Mars 2021 ✅ (S1D2 via π, σ=1.764 post-halt backlog, latence +17.0h)
-  - Gas Crisis Mai 2021 ✅ (S1D2, σ=1.896/sz=1.945/tx=1.889, latence +3.5h depuis onset)
-  - Reorg Storm Fév 2023 ✅ (S2D1 via τ déjà, latence +20.1h)
-- Seuils calibrés proportionnellement au p99 de chaque dimension (équilibrés)
-- Heimdall/Bor Jan 2023 : retiré du ground truth — incident consensus/finality sans signal on-chain mesurable
-**Insight :** Gas Crisis Polygon (mai 2021) = surcharge massive multi-dim (σ×2, size×2, tx×2).
-  Network Halt = demande post-reprise (gas backlog accumulé). Deux signatures distinctes, toutes deux capturées.
-**Logique D2 :** 2 of 3 dims ≥ seuil respectif
-**TPR :** 100% (3/3 événements)
-**FPR combiné :** 1.20%
-**Confiance :** MEDIUM
-**Déployé :** Supabase project `sdpilypwumxsyyipceew`, 17 Mars 2026
-**Script :** BIGDATA/sweep_pol_d2.py
+**Rationale:**
+- Combined FPR (τ+π) = 1.20% — objective < 1.5% achieved
+- TPR 3/3 events:
+  - Network Halt March 2021 ✅ (S1D2 via π, σ=1.764 post-halt backlog, latency +17.0h)
+  - Gas Crisis May 2021 ✅ (S1D2, σ=1.896/sz=1.945/tx=1.889, latency +3.5h from onset)
+  - Reorg Storm Feb 2023 ✅ (S2D1 via τ already, latency +20.1h)
+- Thresholds calibrated proportionally to the p99 of each dimension (balanced)
+- Heimdall/Bor Jan 2023: removed from ground truth — consensus/finality incident without measurable on-chain signal
+**Insight:** Polygon Gas Crisis (May 2021) = massive multi-dim overload (σ×2, size×2, tx×2).
+  Network Halt = post-recovery demand (accumulated gas backlog). Two distinct signatures, both captured.
+**D2 logic:** 2 of 3 dims ≥ respective threshold
+**TPR:** 100% (3/3 events)
+**Combined FPR:** 1.20%
+**Confidence:** MEDIUM
+**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 17, 2026
+**Script:** BIGDATA/sweep_pol_d2.py
 
 ---
 
 ---
 
-## Entrée #010 — 17 Mars 2026 — Dette technique Avalanche : absence dataset BigQuery
+## Entry #010 — March 17, 2026 — Avalanche technical debt: no BigQuery dataset
 
-**Type :** Dette technique — Blocage données
-**Chaîne :** avalanche (L1)
-**Action :** Tentative de calibration τ+π par backtest BigQuery — bloquée.
-**Diagnostic :**
-- `bigquery-public-data.crypto_avalanche` : Access Denied / inexistant
-- `bigquery-public-data.goog_blockchain_avalanche_c_chain_us` : Access Denied / inexistant
-- Aucun dataset BigQuery public disponible pour Avalanche C-Chain à ce jour.
-**Statut actuel :** Seuils P90 empiriques en production (non calibrés par event-detection)
+**Type:** Technical debt — Data blocker
+**Chain:** avalanche (L1)
+**Action:** Attempted τ+π calibration via BigQuery backtest — blocked.
+**Diagnosis:**
+- `bigquery-public-data.crypto_avalanche`: Access Denied / non-existent
+- `bigquery-public-data.goog_blockchain_avalanche_c_chain_us`: Access Denied / non-existent
+- No public BigQuery dataset available for Avalanche C-Chain at this time.
+**Current status:** Empirical P90 thresholds in production (not calibrated by event-detection)
 - `rhythm_p90 = 1.0282` (P90 — LOW)
 - `sigma_demand = 1.2322`, `size_demand = 1.2143`, `tx_demand = 1.2399` (P90 — LOW)
-- `m1_validated = false` (rho_s médian ~7% — chaîne sous-saturée)
-**Action corrective :** Backtest sur données production `ans_invariants_v3`
-- Capteur actif depuis 14 Mars 2026, Φ=720 blocs (~24 inv/jour)
-- 90 jours requis pour EMA stabilisée + événements détectables
-- **Cible : juillet 2026** (après mi-juin 2026 → traitement juillet)
-**Scripts prêts :** BIGDATA/extract_avax.sql + backtest_avax.py + sweep_avax.py + sweep_avax_d2.py
-**Blocker :** À traiter avant toute approche commerciale sur Avalanche.
-**Confiance :** LOW
+- `m1_validated = false` (median rho_s ~7% — under-saturated chain)
+**Corrective action:** Backtest on production data `ans_invariants_v3`
+- Sensor active since March 14, 2026, Φ=720 blocks (~24 inv/day)
+- 90 days required for stabilized EMA + detectable events
+- **Target: July 2026** (after mid-June 2026 → processing July)
+**Scripts ready:** BIGDATA/extract_avax.sql + backtest_avax.py + sweep_avax.py + sweep_avax_d2.py
+**Blocker:** To address before any commercial approach on Avalanche.
+**Confidence:** LOW
 
 ---
 
-## Entrée #011 — 17 Mars 2026 — Déploiement complexity_ratio L2 (Phase A)
+## Entry #011 — March 17, 2026 — complexity_ratio L2 deployment (Phase A)
 
-**Type :** Nouveau signal — déploiement production
-**Chaînes :** arbitrum, base, optimism
-**Signal :** `complexity_ratio = (size_avg / tx_count_avg) / EMA(size_avg / tx_count_avg)`
-**Physique :** bytes par transaction — mesure la complexité moyenne des données par tx, indépendante du volume.
-**Motivation :** τ (rhythm_ratio) inutilisable sur L2 par design (sequencer régulier). σ Arbitrum mort (gas model incompatible). complexity_ratio = premier signal structurel L2 dérivable sans L1 monitoring.
+**Type:** New signal — production deployment
+**Chains:** arbitrum, base, optimism
+**Signal:** `complexity_ratio = (size_avg / tx_count_avg) / EMA(size_avg / tx_count_avg)`
+**Physics:** bytes per transaction — measures average data complexity per tx, independent of volume.
+**Motivation:** τ (rhythm_ratio) unusable on L2 by design (regular sequencer). σ Arbitrum dead (incompatible gas model). complexity_ratio = first L2 structural signal derivable without L1 monitoring.
 
-**Baselines initiales (17 Mars 2026, première mesure) :**
-- arbitrum : complexity_baseline = 589.7 bytes/tx
-- base : complexity_baseline = 564.5 bytes/tx
-- optimism : complexity_baseline = 302.9 bytes/tx
+**Initial baselines (March 17, 2026, first measurement):**
+- arbitrum: complexity_baseline = 589.7 bytes/tx
+- base: complexity_baseline = 564.5 bytes/tx
+- optimism: complexity_baseline = 302.9 bytes/tx
 
-**Paramètres EMA :**
+**EMA parameters:**
 - EMA_ALPHA = 2/11 ≈ 0.1818 (~10h)
-- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30j)
-- Clamp ratio : [0.01, 20.0]
+- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30d)
+- Clamp ratio: [0.01, 20.0]
 
-**Domaine signature :** `v2-l2` (nouveau domaine — incompatible avec `v1-l2` ancien)
-**Reset DB :** `DELETE FROM ans_l2_chain_signals` exécuté avant déploiement
-**Statut baselines :** non calibrées — valeurs initiales, 1 seul invariant
-**Confiance :** LOW — calibration event-detection à faire via Dune (Phase D, Q2-Q3 2026)
+**Signature domain:** `v2-l2` (new domain — incompatible with old `v1-l2`)
+**DB Reset:** `DELETE FROM ans_l2_chain_signals` executed before deployment
+**Baseline status:** not calibrated — initial values, 1 invariant only
+**Confidence:** LOW — event-detection calibration to be done via Dune (Phase D, Q2-Q3 2026)
 
-**Action corrective requise :** aucune — signal opérationnel, baselines convergeront en ~10 invariants (~10h)
-**Blocker calibration :** données Dune historiques ARB/BASE/OP pour identifier événements de référence
+**Required corrective action:** none — signal operational, baselines will converge in ~10 invariants (~10h)
+**Calibration blocker:** Dune historical data ARB/BASE/OP to identify reference events
 
 ---
 
-## Entrée #012 — 17 Mars 2026 — Déploiement gas_complexity_ratio L2 (Phase B)
+## Entry #012 — March 17, 2026 — gas_complexity_ratio L2 deployment (Phase B)
 
-**Type :** Nouveau signal — déploiement production
-**Chaînes :** arbitrum, base, optimism, zksync, polygon-zkevm
-**Signal :** `gas_complexity_ratio = (gas_used_avg / tx_count_avg) / EMA(gas_used_avg / tx_count_avg)`
-**Physique :** gas par transaction — mesure la complexité computationnelle moyenne par tx. Contrairement à `complexity_ratio` (bytes/tx = données), `gas_complexity_ratio` capture la charge de calcul réelle imposée au sequencer.
+**Type:** New signal — production deployment
+**Chains:** arbitrum, base, optimism, zksync, polygon-zkevm
+**Signal:** `gas_complexity_ratio = (gas_used_avg / tx_count_avg) / EMA(gas_used_avg / tx_count_avg)`
+**Physics:** gas per transaction — measures average computational complexity per tx. Unlike `complexity_ratio` (bytes/tx = data), `gas_complexity_ratio` captures the actual computational load imposed on the sequencer.
 
-**Architecture Phase B :**
-- `ans-core` gelé (chaîne cryptographique L1 préservée)
-- `gas_used_avg` calculé dans `invarians-l2-collector` : `mean(load)` sur Φ blocs du buffer, stocké comme colonne nullable dans `ans_invariants_v3`
-- `load` = `gas_used` brut tel que fourni par le capteur RPC via `L0Signal.load`
-- NULL safety : si `gas_used_avg IS NULL` ou `tx_count_avg = 0`, ratio = 1.0 (neutre), baseline préservée
+**Phase B architecture:**
+- `ans-core` frozen (L1 cryptographic chain preserved)
+- `gas_used_avg` computed in `invarians-l2-collector`: `mean(load)` over Φ blocks of the buffer, stored as nullable column in `ans_invariants_v3`
+- `load` = raw `gas_used` as provided by the RPC sensor via `L0Signal.load`
+- NULL safety: if `gas_used_avg IS NULL` or `tx_count_avg = 0`, ratio = 1.0 (neutral), baseline preserved
 
-**Migration SQL :**
+**SQL migration:**
 ```sql
 ALTER TABLE ans_invariants_v3
     ADD COLUMN IF NOT EXISTS gas_used_avg DOUBLE PRECISION;
@@ -282,173 +282,173 @@ ALTER TABLE ans_l2_chain_signals
     ADD COLUMN IF NOT EXISTS gas_complexity_ratio_slow     DOUBLE PRECISION;
 ```
 
-**Domaine signature :** `v3-l2` (rompt avec `v2-l2` Phase A — reset DB requis)
-**Reset DB :** `DELETE FROM ans_l2_chain_signals` exécuté avant redémarrage services
+**Signature domain:** `v3-l2` (breaks with `v2-l2` Phase A — DB reset required)
+**DB Reset:** `DELETE FROM ans_l2_chain_signals` executed before service restart
 
-**Paramètres EMA :**
+**EMA parameters:**
 - EMA_ALPHA = 2/11 ≈ 0.1818 (~10h)
-- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30j)
-- Clamp ratio : [0.01, 20.0]
+- EMA_ALPHA_SLOW = 2/721 ≈ 0.00277 (~30d)
+- Clamp ratio: [0.01, 20.0]
 
-**Baselines initiales :** à observer sur premier cycle post-déploiement (17 Mars 2026 soir)
-**Statut baselines :** non calibrées — valeurs initiales, cold start EMA
-**Confiance :** LOW — calibration event-detection à faire via Dune (Phase D, Q2-Q3 2026)
+**Initial baselines:** to observe on first post-deployment cycle (evening March 17, 2026)
+**Baseline status:** not calibrated — initial values, cold start EMA
+**Confidence:** LOW — event-detection calibration to be done via Dune (Phase D, Q2-Q3 2026)
 
-**Note Arbitrum :** `gas_used_avg` attendu très élevé (modèle Nitro, gas limit ≈ 2^50). `rho_s` ≈ 0 confirme incompatibilité du ratio gasUsed/gasLimit. `gas_complexity_ratio` mesure la complexité absolue (gas/tx), pas relative au limit — signal physiquement pertinent pour Arbitrum contrairement à sigma_ratio.
-
----
+**Note Arbitrum:** `gas_used_avg` expected to be very high (Nitro model, gas limit ≈ 2^50). `rho_s` ≈ 0 confirms incompatibility of gasUsed/gasLimit ratio. `gas_complexity_ratio` measures absolute complexity (gas/tx), not relative to the limit — physically relevant signal for Arbitrum unlike sigma_ratio.
 
 ---
 
-## Entrée #013 — 17 Mars 2026 — Déploiement invarians-l2-adapter (Phase C)
+---
 
-**Type :** Nouveau service — déploiement production
-**Chaînes :** base, optimism, arbitrum
-**Signaux :** `publish_latency_seconds`, `calldata_bytes`, `blob_count`, `blob_usage`, `calldata_per_tx`
-**Physique :** couche σ (Adaptation) — réaction du sequencer à la demande. Signaux L1 croisés avec données L2.
+## Entry #013 — March 17, 2026 — invarians-l2-adapter deployment (Phase C)
 
-**Architecture :**
-- Service Rust indépendant : `invarians-l2-adapter` (nouveau repo)
-- Source : L1 Ethereum via `ETH_L1_RPC_URL` (Alchemy mainnet)
-- Méthode : **Option A** (approximation sans décodage batch encoding)
-- Scan : fenêtre 25 blocs L1 / 5 min, throttle 200ms/bloc
-- Budget CU estimé : ~3.5M CU/mois (115 000 CU/jour)
-- Table cible : `ans_l2_adapter_signals` + `ans_l2_adapter_state`
+**Type:** New service — production deployment
+**Chains:** base, optimism, arbitrum
+**Signals:** `publish_latency_seconds`, `calldata_bytes`, `blob_count`, `blob_usage`, `calldata_per_tx`
+**Physics:** σ layer (Adaptation) — sequencer reaction to demand. L1 signals crossed with L2 data.
 
-**Adresses surveillées :**
-| Chaîne | Contrat | Adresse |
+**Architecture:**
+- Independent Rust service: `invarians-l2-adapter` (new repo)
+- Source: L1 Ethereum via `ETH_L1_RPC_URL` (Alchemy mainnet)
+- Method: **Option A** (approximation without batch encoding decoding)
+- Scan: 25 L1 block window / 5 min, 200ms/block throttle
+- Estimated CU budget: ~3.5M CU/month (115,000 CU/day)
+- Target table: `ans_l2_adapter_signals` + `ans_l2_adapter_state`
+
+**Monitored addresses:**
+| Chain | Contract | Address |
 |--------|---------|---------|
 | Base | BatchInbox | `0xff00...8453` |
 | Optimism | BatchInbox | `0xff00...0010` |
 | Arbitrum | SequencerInbox | `0x1c47...82B6` |
 
-**Premières valeurs observées (17 Mars 2026, 21h35 UTC, blocs L1 #24679924–#24679929) :**
+**First observed values (March 17, 2026, 21:35 UTC, L1 blocks #24679924–#24679929):**
 - `blob_usage` Base = 0.833 (5/6 blobs), Optimism = 0.833 (5/6 blobs)
-- `calldata_bytes` = 655 360b (5 × 131 072b par blob)
-- `publish_latency` ≈ 4 830–4 878s (~80min) — artefact approximation Option A
-- Base + Optimism soumettent dans le même bloc L1 (infrastructure OP Stack partagée)
-- Arbitrum : aucun batch dans la fenêtre initiale (fréquence on-chain réduite par AnyTrust)
+- `calldata_bytes` = 655,360b (5 × 131,072b per blob)
+- `publish_latency` ≈ 4,830–4,878s (~80min) — Option A approximation artifact
+- Base + Optimism submit in the same L1 block (shared OP Stack infrastructure)
+- Arbitrum: no batch in the initial window (reduced on-chain frequency due to AnyTrust)
 
-**Note publish_latency :** la valeur ~80min reflète l'écart entre `t_L1_block` et `last_timestamp` de l'invariant L2 le plus récent (fenêtre ~1h). C'est une mesure relative, adaptée à l'EMA. La valeur absolue n'est pas interprétable directement — seules les variations vs baseline sont significatives.
+**Note on publish_latency:** the ~80min value reflects the gap between `t_L1_block` and the `last_timestamp` of the most recent L2 invariant (~1h window). This is a relative measure, adapted to the EMA. The absolute value is not directly interpretable — only variations vs baseline are significant.
 
-**Note blob_usage = 0.833 :** signal élevé au premier relevé. Peut indiquer une forte utilisation du marché blob ce soir, ou être la baseline normale pour Base/OP. Convergence EMA nécessaire (~10 cycles = ~50 min de L1 scan) avant interprétation.
+**Note on blob_usage = 0.833:** high signal on first reading. May indicate heavy blob market usage this evening, or be the normal baseline for Base/OP. EMA convergence needed (~10 cycles = ~50 min of L1 scan) before interpretation.
 
-**Paramètres EMA :** à définir lors de la calibration Dune (Phase D). Pas d'EMA implémentée en Phase C — les signaux sont stockés bruts. L'EMA sera ajoutée dans un service `invarians-l2-chain` enrichi ou dans un nouveau `invarians-l2-adapter-chain`.
+**EMA parameters:** to be defined during Dune calibration (Phase D). No EMA implemented in Phase C — signals are stored raw. EMA will be added in an enriched `invarians-l2-chain` service or in a new `invarians-l2-adapter-chain`.
 
-**Statut baselines :** non calibrées — premières données, cold start
-**Confiance :** LOW — calibration event-detection Dune pending (Phase D, Q2-Q3 2026)
-
----
+**Baseline status:** not calibrated — first data, cold start
+**Confidence:** LOW — Dune event-detection calibration pending (Phase D, Q2-Q3 2026)
 
 ---
 
-## Entrée #014 — 22 Mars 2026 — Calibration L2 seuils v2 (ARB · BASE · OP)
+---
 
-**Type :** Calibration paramètre — première calibration statistique L2
-**Chaînes :** arbitrum, base, optimism
-**Méthode :** Calibration statistique P90-P95 sur 7 jours de production (15-22 mars 2026).
-  Pas de backtest événementiel à ce stade — données insuffisantes (n≈105-126/chaîne).
-  Validation événementielle prévue Phase D (Q2-Q3 2026 sur données Dune).
+## Entry #014 — March 22, 2026 — L2 threshold calibration v2 (ARB · BASE · OP)
 
-**Données source :**
-- `ans_l2_rollup_signals` : n=126/chaîne (τ — rhythm_ratio)
-- `ans_l2_chain_signals`  : n=91-105/chaîne (π — sigma_ratio)
+**Type:** Parameter calibration — first statistical L2 calibration
+**Chains:** arbitrum, base, optimism
+**Method:** Statistical P90-P95 calibration on 7 days of production (March 15–22, 2026).
+  No event-based backtest at this stage — insufficient data (n≈105-126/chain).
+  Event-based validation planned Phase D (Q2-Q3 2026 on Dune data).
 
-**Diagnostic par chaîne :**
+**Data source:**
+- `ans_l2_rollup_signals`: n=126/chain (τ — rhythm_ratio)
+- `ans_l2_chain_signals`: n=91-105/chain (π — sigma_ratio)
 
-| Chaîne | τ (rhythm_ratio) | π (sigma_ratio) | Signal discriminant |
+**Per-chain diagnosis:**
+
+| Chain | τ (rhythm_ratio) | π (sigma_ratio) | Discriminating signal |
 |--------|-----------------|-----------------|---------------------|
-| Arbitrum | MORT — range 0.9278-1.0135, p95=1.0018 | MORT — constant 1.0000 | Aucun. Toujours S1D1. |
-| Base | MORT — constant 1.0000 | ACTIF — p90=1.0866, p95=1.1444, max=1.3068 | π uniquement |
-| Optimism | MORT — constant 1.0000 | ACTIF — p90=1.0500, p95=1.0749, max=1.1368 | π uniquement |
+| Arbitrum | DEAD — range 0.9278-1.0135, p95=1.0018 | DEAD — constant 1.0000 | None. Always S1D1. |
+| Base | DEAD — constant 1.0000 | ACTIVE — p90=1.0866, p95=1.1444, max=1.3068 | π only |
+| Optimism | DEAD — constant 1.0000 | ACTIVE — p90=1.0500, p95=1.0749, max=1.1368 | π only |
 
-**Note τ L2 :** τ (rhythm_ratio) est mort par design sur Base et Optimism — le sequencer impose
-une cadence parfaitement régulière (block time fixe 2s). Confirmé empiriquement : toutes les
-valeurs observées = 1.0000 exactement. Cohérent avec le pivot architectural du 17 Mars 2026.
+**Note on τ L2:** τ (rhythm_ratio) is dead by design on Base and Optimism — the sequencer imposes
+a perfectly regular cadence (fixed 2s block time). Confirmed empirically: all observed
+values = 1.0000 exactly. Consistent with the architectural pivot of March 17, 2026.
 
-**Note cold-start EMA Arbitrum (16 Mars 2026, 00:03 → 07:44) :** Analyse post-calibration des
-126 observations révèle 7 entrées consécutives avec τ < 0.97 (min=0.9278) uniquement pendant
-cette fenêtre de 7h. Cause : EMA non convergée après démarrage (α=0.1818, N≈10 — convergence
-~10 observations = ~10h). La baseline initiale était trop haute → τ < 1.0 pendant la convergence.
-Ce n'est pas un événement structurel. Impact opérationnel : **zéro** — τ < 1.0 ne franchit jamais
-le seuil S2 (1.15). Le cold-start produit des τ bas (système perçu plus rapide que baseline),
-jamais de faux positifs S2. Après le 16 Mars 08h : τ stable dans la bande 0.998–1.014.
+**Note on Arbitrum cold-start EMA (March 16, 2026, 00:03 → 07:44):** Post-calibration analysis of
+126 observations reveals 7 consecutive entries with τ < 0.97 (min=0.9278) only during
+this 7h window. Cause: EMA not converged after startup (α=0.1818, N≈10 — convergence
+~10 observations = ~10h). Initial baseline was too high → τ < 1.0 during convergence.
+This is not a structural event. Operational impact: **zero** — τ < 1.0 never crosses
+the S2 threshold (1.15). The cold start produces low τ values (system perceived as faster than baseline),
+never S2 false positives. After March 16 08:00: τ stable in the 0.998–1.014 band.
 
-**Note π Arbitrum :** sigma_ratio constant = 1.0000 sur 91 observations. Confirmé : gasLimit
-Arbitrum Nitro ≈ 2^50 → rho_s ≈ 0 systématiquement → signal non discriminant. Arbitrum sera
-toujours S1D1 jusqu'à calibration de complexity_ratio (Phase A — ROADMAP 1-bis).
+**Note on π Arbitrum:** sigma_ratio constant = 1.0000 over 91 observations. Confirmed: Arbitrum Nitro
+gasLimit ≈ 2^50 → rho_s ≈ 0 systematically → non-discriminating signal. Arbitrum will
+always be S1D1 until complexity_ratio calibration (Phase A — ROADMAP 1-bis).
 
-**Anciennes valeurs (v1 — provisoires depuis 15 mars 2026) :**
+**Previous values (v1 — provisional since March 15, 2026):**
 - `TAU_THRESHOLD = 1.15` (global)
 - `PI_THRESHOLD  = 1.20` (global)
 
-**Nouvelles valeurs (v2 — par chaîne) :**
+**New values (v2 — per chain):**
 
-| Chaîne | τ (était 1.15) | π (était 1.20) | Justification |
+| Chain | τ (was 1.15) | π (was 1.20) | Rationale |
 |--------|---------------|---------------|--------------|
-| Arbitrum | 1.15 (dormant) | 1.20 (dormant) | Signaux morts — seuils sans effet |
-| Base | 1.05 (τ mort) | **1.10** | Entre p90 (1.0866) et p95 (1.1444) — ~p92 |
-| Optimism | 1.05 (τ mort) | **1.06** | Entre p90 (1.0500) et p95 (1.0749) — ~p93 |
+| Arbitrum | 1.15 (dormant) | 1.20 (dormant) | Dead signals — thresholds have no effect |
+| Base | 1.05 (τ dead) | **1.10** | Between p90 (1.0866) and p95 (1.1444) — ~p92 |
+| Optimism | 1.05 (τ dead) | **1.06** | Between p90 (1.0500) and p95 (1.0749) — ~p93 |
 
-**Validation distribution (requête 1C avec seuils v2) :**
+**Distribution validation (query 1C with v2 thresholds):**
 
-| Chaîne | S1D1 | S1D2 | Verdict |
+| Chain | S1D1 | S1D2 | Verdict |
 |--------|------|------|---------|
-| Arbitrum | 100% | 0% | Attendu — signaux morts |
-| Base | 92.4% | 7.6% | ✅ Dans la cible 3-8% |
-| Optimism | 92.4% | 7.6% | ✅ Dans la cible 3-8% |
+| Arbitrum | 100% | 0% | Expected — dead signals |
+| Base | 92.4% | 7.6% | ✅ Within target 3-8% |
+| Optimism | 92.4% | 7.6% | ✅ Within target 3-8% |
 
-**Fichiers modifiés :**
-- `invarians-oracle/supabase/functions/attestation/index.ts` — `L2_THRESHOLDS` Record par chaîne · `classifyL2State` chain-aware · calibration version `"v2"`
-- `invarians-oracle/supabase/migration_l2_states.sql` — CASE par chaîne dans `v_l2_states`
+**Modified files:**
+- `invarians-oracle/supabase/functions/attestation/index.ts` — `L2_THRESHOLDS` Record per chain · `classifyL2State` chain-aware · calibration version `"v2"`
+- `invarians-oracle/supabase/migration_l2_states.sql` — CASE per chain in `v_l2_states`
 
-**Déploiements :**
-- Oracle Edge Function redéployée : `supabase functions deploy attestation` ✅
-- Vue `v_l2_states` recréée en production (Supabase SQL Editor) ✅
+**Deployments:**
+- Oracle Edge Function redeployed: `supabase functions deploy attestation` ✅
+- View `v_l2_states` recreated in production (Supabase SQL Editor) ✅
 
-**Confiance :** MEDIUM (statistique sur 7j) — pas de backtest événementiel
-**Prochaine calibration L2 :** Phase D, Q2-Q3 2026 sur données Dune historiques ARB/BASE/OP
-**Blocker :** calibration événementielle requise avant approche commerciale sur L2
-
----
+**Confidence:** MEDIUM (statistical over 7d) — no event-based backtest
+**Next L2 calibration:** Phase D, Q2-Q3 2026 on Dune historical data ARB/BASE/OP
+**Blocker:** event-based calibration required before commercial approach on L2
 
 ---
 
-## Entrée #015 — 22 Mars 2026 — Déploiement invarians-bridge-collector (Phase 2A)
+---
 
-**Type :** Nouveau service — déploiement production
-**Chaînes :** arbitrum, base, optimism
-**Signal :** `last_batch_age_seconds` — temps depuis le dernier batch publié sur L1
-**Physique :** liveness du batch posting séquenceur → L1. Détecte les absences (flux interrompu), pas les présences.
+## Entry #015 — March 22, 2026 — invarians-bridge-collector deployment (Phase 2A)
 
-**Architecture :**
-- Service Rust indépendant : `BRIDGE/invarians-bridge-collector/`
-- Source : L1 Ethereum mainnet via `ETH_L1_RPC_URL` (même clé Alchemy que invarians-l2-adapter)
-- Méthode : `eth_getLogs` sur BatchDelivered events (Arbitrum) + BatchInbox txs (Base/OP)
-- Polling : 10 min
-- Tables créées : `ans_bridge_signals` + `bridge_collector_state`
+**Type:** New service — production deployment
+**Chains:** arbitrum, base, optimism
+**Signal:** `last_batch_age_seconds` — time since the last batch published on L1
+**Physics:** sequencer → L1 batch posting liveness. Detects absences (interrupted flow), not presences.
 
-**Premières valeurs observées (22-23 Mars 2026, 131 cycles/chaîne) :**
-- arbitrum : avg=57s, max=192s
-- base     : avg=23s, max=108s
-- optimism : avg=132s, max=360s
+**Architecture:**
+- Independent Rust service: `BRIDGE/invarians-bridge-collector/`
+- Source: L1 Ethereum mainnet via `ETH_L1_RPC_URL` (same Alchemy key as invarians-l2-adapter)
+- Method: `eth_getLogs` on BatchDelivered events (Arbitrum) + BatchInbox txs (Base/OP)
+- Polling: 10 min
+- Tables created: `ans_bridge_signals` + `bridge_collector_state`
 
-**Statut :** Phase 2A ✅ active — Phase 2B en cours (observation 30j, ~22 Avril 2026)
-**Prochaine étape :** Phase 2B — calibration P90 `threshold_rupture` + `threshold_P90` par chaîne
-**Confiance BS1/BS2 :** non applicable — classifier non déployé (Phase 2C, post-calibration)
-**Impact oracle :** `bridge_state` reste hardcodé BS1 dans `attestation/index.ts` jusqu'à Phase 2C
+**First observed values (March 22–23, 2026, 131 cycles/chain):**
+- arbitrum: avg=57s, max=192s
+- base:     avg=23s, max=108s
+- optimism: avg=132s, max=360s
+
+**Status:** Phase 2A ✅ active — Phase 2B in progress (30d observation, ~April 22, 2026)
+**Next step:** Phase 2B — P90 calibration `threshold_rupture` + `threshold_P90` per chain
+**BS1/BS2 confidence:** not applicable — classifier not deployed (Phase 2C, post-calibration)
+**Oracle impact:** `bridge_state` remains hardcoded BS1 in `attestation/index.ts` until Phase 2C
 
 ---
 
-## Entrée #016 — 16 Avril 2026 — Analyse distribution 30j L2 + Recalibration seuils BASE/OP
+## Entry #016 — April 16, 2026 — 30d L2 distribution analysis + BASE/OP threshold recalibration
 
-**Type :** Analyse distribution + Recalibration paramètre
-**Chaînes :** base, optimism (arbitrum non concerné — signaux dormants)
-**Trigger :** Condition H2 levée — 30j post-reset EMA BASE/OP (2026-03-16 → 2026-04-16)
+**Type:** Distribution analysis + Parameter recalibration
+**Chains:** base, optimism (arbitrum not affected — dormant signals)
+**Trigger:** H2 condition lifted — 30d post-EMA reset BASE/OP (2026-03-16 → 2026-04-16)
 
 ---
 
-**Requête de validation exécutée (16 Avril 2026) :**
+**Validation query executed (April 16, 2026):**
 
 ```sql
 SELECT chain, COUNT(*) as n_samples,
@@ -462,46 +462,46 @@ WHERE computed_at >= '2026-03-22'::timestamptz
 GROUP BY chain ORDER BY chain;
 ```
 
-**Résultats avec seuils v2 (calibration_log #014) :**
+**Results with v2 thresholds (calibration_log #014):**
 
-| Chaîne | n | D2% | avg_sigma | p90 | p95 |
+| Chain | n | D2% | avg_sigma | p90 | p95 |
 |--------|---|-----|-----------|-----|-----|
 | arbitrum | 555 | 0.00% | 1.0000 | 1.0000 | 1.0000 |
 | base | 558 | 12.37% | 1.0007 | 1.1127 | 1.1671 |
 | optimism | 558 | 11.29% | 1.0010 | 1.0675 | 1.1018 |
 
-**Diagnostic :**
-- Les seuils v2 (BASE=1.10, OP=1.06) produisent D2%=12-11% — hors cible 3-8%.
-- Cause : calibration #014 effectuée sur 7 jours (fenêtre calme). Distribution 30j révèle une activité réelle plus élevée.
-- **Incoherence détectée avec L1 :** FPR L1 = 1.20-1.23% (ETH, POL) via logique 2-of-3 multi-signal. L2 utilise sigma seul (mono-signal) avec les mêmes valeurs numériques de seuil → FPR 10x supérieur. Les seuils ne sont pas comparables cross-layer sans ajustement.
+**Diagnosis:**
+- v2 thresholds (BASE=1.10, OP=1.06) produce D2%=12-11% — outside target 3-8%.
+- Cause: calibration #014 performed on 7 days (calm window). 30d distribution reveals higher real activity.
+- **Inconsistency detected with L1:** L1 FPR = 1.20-1.23% (ETH, POL) via 2-of-3 multi-signal logic. L2 uses sigma alone (mono-signal) with the same numerical threshold values → 10x higher FPR. Thresholds are not comparable cross-layer without adjustment.
 
-**Requête percentile étendue (p97-p99) :**
+**Extended percentile query (p97-p99):**
 
-| Chaîne | p97 | p98 | p99 |
+| Chain | p97 | p98 | p99 |
 |--------|-----|-----|-----|
 | base | 1.1933 | 1.2441 | 1.3110 |
 | optimism | 1.1216 | 1.1415 | 1.2273 |
 
-**Logique de recalibration :**
+**Recalibration logic:**
 
-L1 cible FPR ~1.2% avec logique 2-of-3 (consensus multi-signal).
-L2 utilise sigma seul (mono-signal, plus sensible) — pour un FPR équivalent, le seuil doit être positionné plus haut dans la distribution.
-Cible retenue : **~3% D2 (P97 sur 30j)** — cohérent avec le FPR L1 en tenant compte de l'asymétrie mono/multi-signal.
+L1 targets FPR ~1.2% with 2-of-3 logic (multi-signal consensus).
+L2 uses sigma alone (mono-signal, more sensitive) — for equivalent FPR, the threshold must be positioned higher in the distribution.
+Selected target: **~3% D2 (P97 over 30d)** — consistent with L1 FPR accounting for mono/multi-signal asymmetry.
 
-**Nouvelles valeurs proposées (v3) :**
+**Proposed new values (v3):**
 
-| Chaîne | Seuil v2 | Seuil v3 | Percentile | D2% estimé | Justification |
+| Chain | v2 threshold | v3 threshold | Percentile | Estimated D2% | Rationale |
 |--------|----------|----------|------------|------------|---------------|
-| BASE | 1.10 | **1.20** | ~p97 (1.1933) | ~3% | Chiffre rond, juste au-dessus de p97 |
-| OP | 1.06 | **1.12** | p97 (1.1216) | ~3% | Exactement p97 |
-| ARB | 1.20 | 1.20 (inchangé) | dormant | ~0% | sigma_ratio constant 1.0000 — gasLimit ARB incompatible |
+| BASE | 1.10 | **1.20** | ~p97 (1.1933) | ~3% | Round number, just above p97 |
+| OP | 1.06 | **1.12** | p97 (1.1216) | ~3% | Exactly p97 |
+| ARB | 1.20 | 1.20 (unchanged) | dormant | ~0% | sigma_ratio constant 1.0000 — ARB gasLimit incompatible |
 
-**Statut :** ✅ Déployé — 16 Avril 2026 · `supabase functions deploy attestation` · project sdpilypwumxsyyipceew
-**Confiance :** MEDIUM — calibration statistique P97 sur 30j. Pas de validation événementielle.
-**Prochaine étape :** Phase D (Q2-Q3 2026) — backtest Dune sur événements L2 historiques ARB/BASE/OP pour valider TPR/FPR sur incidents réels.
-**Blocker :** validation événementielle requise avant approche commerciale sur L2 (inchangé depuis #014).
+**Status:** ✅ Deployed — April 16, 2026 · `supabase functions deploy attestation` · project sdpilypwumxsyyipceew
+**Confidence:** MEDIUM — statistical P97 calibration over 30d. No event-based validation.
+**Next step:** Phase D (Q2-Q3 2026) — Dune backtest on historical L2 events ARB/BASE/OP to validate TPR/FPR on real incidents.
+**Blocker:** event-based validation required before commercial approach on L2 (unchanged since #014).
 
 ---
 
-*Journal maintenu à jour à chaque intervention sur les baselines ou paramètres de calibration.*
-*Format : immuable. Pas de modification des entrées passées — uniquement ajout en fin de fichier.*
+*Log maintained and updated with each intervention on calibration baselines or parameters.*
+*Format: immutable. No modification of past entries — additions at end of file only.*

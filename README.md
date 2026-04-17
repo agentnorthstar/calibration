@@ -1,82 +1,82 @@
 ---
-title: "Invarians — Publications de calibration"
+title: "Invarians — Calibration Publications"
 version: "0.1"
 date: "2026-04-17"
 audience: [ai-agents, developers, researchers]
 ---
 
-# Invarians — Publications de calibration
+# Invarians — Calibration Publications
 
-> **AgentNorthStar.com** — registre public de calibration Invarians
-> Ces documents constituent la spécification technique vérifiable du système de mesure.
+> **AgentNorthStar.com** — Invarians public calibration registry
+> These documents constitute the verifiable technical specification of the measurement system.
 
 ---
 
-## Lire dans cet ordre
+## Read in this order
 
-### 1. Comprendre la méthode — `methodology.md`
+### 1. Understand the method — `methodology.md`
 
-Point d'entrée pour tout lecteur. Couvre :
-- Principe fondamental : régime structurel vs signal instantané
-- Architecture du signal (τ structure, π demande)
-- Pipeline complet OFFLINE/ONLINE (section 4.5)
-- Paramètres per-chaîne + état de calibration
+Entry point for all readers. Covers:
+- Core principle: structural regime vs instantaneous signal
+- Signal architecture (τ structure, π demand)
+- Complete OFFLINE/ONLINE pipeline (section 4.5)
+- Per-chain parameters + calibration status
 - M1 Metric Stability Score (section 10)
-- L2 Rollups : pourquoi les signaux diffèrent
-- Métriques complètes par couche (L1, L2 π/μ/σ, Bridge)
+- L2 Rollups: why signals differ
+- Complete metrics by layer (L1, L2 π/μ/σ, Bridge)
 
-**Audience :** développeurs intégrant l'API, agents IA consommant les attestations, chercheurs auditant la méthode.
+**Audience:** developers integrating the API, AI agents consuming attestations, researchers auditing the method.
 
-### 2. Résultats de validation — `backtest_ethereum.md`
+### 2. Validation results — `backtest_ethereum.md`
 
-Backtest BigQuery 2020–2024 sur 34 697 fenêtres Ethereum.
-- Sweeps threshold_s2 et threshold_d2
-- Événements ground truth : The Merge, Shanghai Upgrade, DeFi Summer, NFT Mania
+BigQuery backtest 2020–2024 on 34,697 Ethereum windows.
+- threshold_s2 and threshold_d2 sweeps
+- Ground truth events: The Merge, Shanghai Upgrade, DeFi Summer, NFT Mania
 - TPR=100% (4/4), FPR τ+π=1.23%
-- Paramètres ETH finaux validés (confidence: MEDIUM)
+- Final validated ETH parameters (confidence: MEDIUM)
 
-### 3. Journal d'incidents — `calibration_log.md`
+### 3. Incident log — `calibration_log.md`
 
-Historique immuable de toutes les décisions de calibration (resets EMA, corrections bugs, choix méthodologiques). Référence d'audit.
+Immutable history of all calibration decisions (EMA resets, bug fixes, methodological choices). Audit reference.
 
-### 4. Suivi protocoles — `protocol_watch.md`
+### 4. Protocol watch — `protocol_watch.md`
 
-Impact des upgrades blockchain (EIP-4844, EIP-7702, EIP-7781, Shared Sequencers) sur la calibration Invarians. Mis à jour à chaque évolution protocolaire significative.
+Impact of blockchain upgrades (EIP-4844, EIP-7702, EIP-7781, Shared Sequencers) on Invarians calibration. Updated with each significant protocol change.
 
 ---
 
 ## Index
 
-| Fichier | Statut | Date | Description |
+| File | Status | Date | Description |
 |---------|--------|------|-------------|
-| `methodology.md` | 🟡 draft | 2026-04-17 | Méthode complète — pipeline, signaux, calibration, M1 |
-| `backtest_ethereum.md` | ✅ validated | 2026-03-16 | Backtest ETH 2020–2024 — TPR=100%, FPR τ+π=1.23% (4/4 événements) |
-| `backtest_solana.md` | ✅ validated | 2026-03-16 | Backtest SOL τ 2021–2024 — TPR=100%, FPR_τ=1.77% (4/4 outages) · π pending |
-| `calibration_log.md` | 🟡 active | 2026-04-16 | Journal incidents + décisions — 16 entrées |
-| `protocol_watch.md` | 🟡 active | 2026-04-11 | Suivi EIPs et upgrades — 5 entrées |
-| `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | Case study ARB 20 juin 2024 — L2:S1D2 + Bridge:BS2 invisible aux fee monitors |
-| `scripts/` | ✅ reproductible | 2026-03-16 | Scripts Python + SQL BigQuery — ETH, POL, SOL + h5_composite_demo.py (reproductibles indépendamment) |
-| `backtest_polygon.md` | ✅ validated | 2026-04-17 | Backtest POL 2020–2024 — TPR=100% (4/4), FPR=11.75% (élevé, documenté), M1=7.37 |
-| `chain_profile_ethereum.md` | ⏳ pending | — | Profil ETH complet (pending M1 formalisé) |
-| `chain_profile_solana.md` | ⏳ pending | — | Profil SOL (pending calibration π juillet 2026) |
-| `chain_profile_polygon.md` | ⏳ pending | — | Profil POL (pending exécution backtest) |
+| `methodology.md` | 🟡 draft | 2026-04-17 | Complete method — pipeline, signals, calibration, M1 |
+| `backtest_ethereum.md` | ✅ validated | 2026-03-16 | ETH backtest 2020–2024 — TPR=100%, FPR τ+π=1.23% (4/4 events) |
+| `backtest_solana.md` | ✅ validated | 2026-03-16 | SOL τ backtest 2021–2024 — TPR=100%, FPR_τ=1.77% (4/4 outages) · π pending |
+| `calibration_log.md` | 🟡 active | 2026-04-16 | Incident log + decisions — 16 entries |
+| `protocol_watch.md` | 🟡 active | 2026-04-11 | EIP and upgrade tracking — 5 entries |
+| `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024 — L2:S1D2 + Bridge:BS2 invisible to fee monitors |
+| `scripts/` | ✅ reproducible | 2026-03-16 | Python + SQL BigQuery scripts — ETH, POL, SOL + h5_composite_demo.py (independently reproducible) |
+| `backtest_polygon.md` | ✅ validated | 2026-04-17 | POL backtest 2020–2024 — TPR=100% (4/4), FPR=11.75% (elevated, documented), M1=7.37 |
+| `chain_profile_ethereum.md` | ⏳ pending | — | Complete ETH profile (pending formalized M1) |
+| `chain_profile_solana.md` | ⏳ pending | — | SOL profile (pending π calibration July 2026) |
+| `chain_profile_polygon.md` | ⏳ pending | — | POL profile (pending backtest execution) |
 
-**Statuts :**
-- ✅ validated — publié, données validées par backtest
-- 🟡 active/draft — en cours, partiellement publié
-- ⏳ pending — contenu disponible, publication en attente
+**Statuses:**
+- ✅ validated — published, data validated by backtest
+- 🟡 active/draft — in progress, partially published
+- ⏳ pending — content available, publication pending
 
 ---
 
-## Ce qui n'est PAS ici
+## What is NOT here
 
-- Code source → GitHub [invarians-oracle]
+- Source code → GitHub [invarians-oracle]
 - API documentation → docs.invarianslabs.com
-- Valeurs M1 en temps réel → AgentNorthStar.com
+- Real-time M1 values → AgentNorthStar.com
 
 ---
 
-*Invarians mesure dans quel régime structurel une blockchain opère.*
-*Ces publications permettent d'auditer la méthode indépendamment.*
+*Invarians measures which structural regime a blockchain is operating in.*
+*These publications allow the method to be audited independently.*
 
-*Créé le 17 Avril 2026*
+*Created April 17, 2026*

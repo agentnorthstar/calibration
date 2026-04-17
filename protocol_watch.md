@@ -1,122 +1,122 @@
 # Invarians — Protocol Watch
 
-**Format :** évolutions de protocoles externes vérifiées sur sources primaires, classées par impact sur la calibration Invarians.
-**Règle :** toute entrée doit être sourcée sur ethereum.org, le GitHub EIP tracker, ou la documentation officielle du projet. Aucune source tierce.
+**Format:** external protocol changes verified against primary sources, ranked by impact on Invarians calibration.
+**Rule:** every entry must be sourced from ethereum.org, the GitHub EIP tracker, or the official project documentation. No third-party sources.
 
 ---
 
 ## EIP-4844 — Proto-Danksharding
 
-**Statut :** Final — déployé mainnet mars 2024
-**Source :** github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
+**Status:** Final — deployed mainnet March 2024
+**Source:** github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md
 
-**Description technique :**
-Introduit un nouveau type de transaction ("blob-carrying transaction") avec un marché de gas distinct (blob gas) pour le posting de données L2 → L1. Les blobs sont temporaires (environ 18 jours) et moins chers que le calldata.
+**Technical description:**
+Introduces a new transaction type ("blob-carrying transaction") with a distinct gas market (blob gas) for L2 → L1 data posting. Blobs are temporary (approximately 18 days) and cheaper than calldata.
 
-**Impact sur Invarians :**
+**Impact on Invarians:**
 
-La pression économique π sur L1 était historiquement corrélée à l'activité L2 via le calldata posting. Depuis EIP-4844, les L2 postent leurs données en blobs à un coût structurellement inférieur et sur un marché distinct. Conséquence : π sur L1 est partiellement découplé de l'activité L2.
+The economic pressure π on L1 was historically correlated with L2 activity via calldata posting. Since EIP-4844, L2s post their data as blobs at a structurally lower cost and on a distinct market. Consequence: π on L1 is partially decoupled from L2 activity.
 
-Les baselines π calculées sur des données antérieures à mars 2024 intègrent un niveau de pression L1 structurellement plus élevé qu'il ne l'est désormais. Tout backtest utilisant des données pre-4844 pour calibrer les seuils S1D2/S2D2 doit en tenir compte.
+The π baselines calculated on pre-March 2024 data incorporate a structurally higher level of L1 pressure than currently exists. Any backtest using pre-4844 data to calibrate S1D2/S2D2 thresholds must account for this.
 
-**Action requise :**
-- Vérifier que les baselines π ETH sont calculées sur des données post-mars 2024 uniquement
-- Documenter explicitement la date de rupture dans les backtests ETH
-- Signaler dans tout pitch ou publication que les comparaisons pre/post-4844 ne sont pas directement équivalentes
+**Required action:**
+- Verify that ETH π baselines are calculated on post-March 2024 data only
+- Explicitly document the break date in ETH backtests
+- Flag in any pitch or publication that pre/post-4844 comparisons are not directly equivalent
 
-**Priorité :** Haute — impacte directement la fiabilité des baselines π ETH
-
----
-
-## EIP-7702 — Account Abstraction pour EOA (Pectra)
-
-**Statut :** Final — déployé mainnet mai 2025
-**Source :** github.com/ethereum/EIPs/blob/master/EIPS/eip-7702.md
-
-**Description technique :**
-Permet à un EOA de déléguer temporairement son exécution à un smart contract via une transaction de type SET_CODE. Utilisé notamment pour les session keys dans les pipelines agentiques.
-
-**Impact sur Invarians :**
-
-Augmentation structurelle du volume de transactions agentiques sur L1 et L2. Les agents AI peuvent désormais exécuter des stratégies multi-étapes de manière non-custodiale. La pression π sur les chaînes supportant EIP-7702 sera progressivement modifiée par ce nouveau type de trafic.
-
-C'est un accélérateur de la thèse Invarians : plus d'agents actifs = signal d'exécution context plus fréquemment sollicité.
-
-**Action requise :**
-- Surveiller l'évolution des baselines π ETH post-mai 2025
-- Identifier si les UserOps (EIP-4337) et les SET_CODE (EIP-7702) introduisent des patterns de congestion distincts dans les métriques σ
-- Aucune recalibration immédiate requise — surveiller sur 90 jours
-
-**Priorité :** Moyenne — opportunité, pas contrainte
+**Priority:** High — directly impacts the reliability of ETH π baselines
 
 ---
 
-## EIP-7781 — Réduction du slot time (en cours de spécification)
+## EIP-7702 — Account Abstraction for EOA (Pectra)
 
-**Statut :** Draft
-**Source :** github.com/ethereum/EIPs/issues — à confirmer sur EIP tracker officiel avant toute citation publique
+**Status:** Final — deployed mainnet May 2025
+**Source:** github.com/ethereum/EIPs/blob/master/EIPS/eip-7702.md
 
-**Description technique :**
-Propose de réduire le slot Ethereum de 12 secondes à 8 secondes.
+**Technical description:**
+Allows an EOA to temporarily delegate its execution to a smart contract via a SET_CODE transaction type. Used notably for session keys in agentic pipelines.
 
-**Impact sur Invarians :**
+**Impact on Invarians:**
 
-La fenêtre structurelle Invarians est exprimée en nombre de blocs (~280 blocs pour ETH ≈ 1h). Si le slot passe à 8s, 280 blocs représentent ~37 minutes au lieu de ~56 minutes. La fenêtre temporelle se comprime.
+Structural increase in the volume of agentic transactions on L1 and L2. AI agents can now execute multi-step strategies in a non-custodial manner. The π pressure on chains supporting EIP-7702 will be progressively modified by this new type of traffic.
 
-Options à évaluer au moment du déploiement :
-- Ajuster le nombre de blocs pour maintenir une fenêtre ~1h (280 → 450 blocs)
-- Ou accepter la fenêtre plus courte et recalibrer les baselines
+This is an accelerator of the Invarians thesis: more active agents = execution signal context more frequently solicited.
 
-**Action requise :**
-- Surveiller le statut de cette EIP — ne rien changer tant qu'elle n'est pas en "Last Call"
-- Préparer le script de recalibration fenêtre à l'avance
+**Required action:**
+- Monitor the evolution of ETH π baselines post-May 2025
+- Identify whether UserOps (EIP-4337) and SET_CODE (EIP-7702) introduce distinct congestion patterns in σ metrics
+- No immediate recalibration required — monitor over 90 days
 
-**Priorité :** Basse à ce stade — à réactiver quand statut = Last Call
+**Priority:** Medium — opportunity, not a constraint
+
+---
+
+## EIP-7781 — Slot time reduction (under specification)
+
+**Status:** Draft
+**Source:** github.com/ethereum/EIPs/issues — to confirm on official EIP tracker before any public citation
+
+**Technical description:**
+Proposes reducing the Ethereum slot from 12 seconds to 8 seconds.
+
+**Impact on Invarians:**
+
+The Invarians structural window is expressed in number of blocks (~280 blocks for ETH ≈ 1h). If the slot moves to 8s, 280 blocks represent ~37 minutes instead of ~56 minutes. The time window compresses.
+
+Options to evaluate at deployment time:
+- Adjust the number of blocks to maintain a ~1h window (280 → 450 blocks)
+- Or accept the shorter window and recalibrate the baselines
+
+**Required action:**
+- Monitor the status of this EIP — change nothing until it reaches "Last Call"
+- Prepare the window recalibration script in advance
+
+**Priority:** Low at this stage — to reactivate when status = Last Call
 
 ---
 
 ## Shared Sequencers — Espresso Systems, Astria
 
-**Statut :** Testnets actifs, intégrations L2 en cours (avril 2026)
-**Sources :** docs.espressosys.com · astria.org
+**Status:** Active testnets, L2 integrations in progress (April 2026)
+**Sources:** docs.espressosys.com · astria.org
 
-**Description technique :**
-Un sequencer partagé gère l'ordering de transactions pour plusieurs L2 simultanément, permettant l'interopérabilité inter-L2 sans bridge.
+**Technical description:**
+A shared sequencer handles transaction ordering for multiple L2s simultaneously, enabling inter-L2 interoperability without a bridge.
 
-**Impact sur Invarians :**
+**Impact on Invarians:**
 
-Si plusieurs L2 monitorés par Invarians partagent un sequencer commun (ex: Espresso), un incident sur ce sequencer produit une corrélation soudaine entre chaînes habituellement indépendantes. Risque de faux signal S2 multi-chaînes simultané.
+If multiple L2s monitored by Invarians share a common sequencer (e.g., Espresso), an incident on that sequencer produces a sudden correlation between chains that are normally independent. Risk of simultaneous multi-chain S2 false signal.
 
-Sans identification du sequencer sous-jacent, Invarians peut interpréter une panne d'infrastructure tierce comme une saturation native du réseau.
+Without identification of the underlying sequencer, Invarians may interpret a third-party infrastructure failure as native network saturation.
 
-**Action requise :**
-- Identifier le sequencer sous-jacent de chaque L2 monitoré (natif vs partagé)
-- Envisager un champ `sequencer_type: native | shared` dans la matrice régimes
-- Documenter les L2 sur Espresso/Astria dès qu'ils passent en mainnet
+**Required action:**
+- Identify the underlying sequencer of each monitored L2 (native vs shared)
+- Consider a `sequencer_type: native | shared` field in the regime matrix
+- Document L2s on Espresso/Astria as soon as they go to mainnet
 
-**Priorité :** Moyenne — devient haute si un L2 monitoré migre vers shared sequencer
+**Priority:** Medium — becomes high if a monitored L2 migrates to a shared sequencer
 
 ---
 
 ## EIP-4337 — Account Abstraction via Bundlers
 
-**Statut :** Final — déployé mainnet mars 2023
-**Source :** github.com/ethereum/EIPs/blob/master/EIPS/eip-4337.md
+**Status:** Final — deployed mainnet March 2023
+**Source:** github.com/ethereum/EIPs/blob/master/EIPS/eip-4337.md
 
-**Description technique :**
-Introduit les UserOperations traitées par des bundlers — une couche d'agrégation entre les wallets smart contract et le mempool L1.
+**Technical description:**
+Introduces UserOperations processed by bundlers — an aggregation layer between smart contract wallets and the L1 mempool.
 
-**Impact sur Invarians :**
+**Impact on Invarians:**
 
-Les bundlers ajoutent une latence et une compétition spécifiques qui n'existaient pas avec les transactions EOA classiques. La pression π peut présenter des patterns atypiques lors des pics de volume UserOps (ex: drops NFT, liquidations DeFi via smart wallets).
+Bundlers add specific latency and competition that did not exist with classic EOA transactions. The π pressure may exhibit atypical patterns during UserOps volume spikes (e.g., NFT drops, DeFi liquidations via smart wallets).
 
-**Action requise :**
-- Surveiller si les baselines π ETH présentent des signatures distinctes lors des pics UserOps connus
-- Pas de recalibration immédiate requise
+**Required action:**
+- Monitor whether ETH π baselines exhibit distinct signatures during known UserOps spikes
+- No immediate recalibration required
 
-**Priorité :** Basse — surveillance passive
+**Priority:** Low — passive monitoring
 
 ---
 
-*Dernière mise à jour : 2026-04-11*
-*Règle de mise à jour : toute nouvelle entrée doit citer une source primaire vérifiée.*
+*Last updated: 2026-04-11*
+*Update rule: any new entry must cite a verified primary source.*
