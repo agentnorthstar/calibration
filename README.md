@@ -56,7 +56,7 @@ Impact of blockchain upgrades (EIP-4844, EIP-7702, EIP-7781, Shared Sequencers) 
 | `protocol_watch.md` | 🟡 active | 2026-04-11 | EIP and upgrade tracking — 5 entries |
 | `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024 — L2:S1D2 + Bridge:BS2 invisible to fee monitors |
 | `scripts/` | ✅ reproducible | 2026-03-16 | Python + SQL BigQuery scripts — ETH, POL, SOL + h5_composite_demo.py (independently reproducible) |
-| `backtest_polygon.md` | ✅ validated | 2026-04-17 | POL backtest 2020–2024 — TPR=100% (4/4), FPR=11.75% (elevated, documented), M1=7.37 |
+| `backtest_polygon.md` | ✅ validated | 2026-04-17 | POL backtest 2020–2024 — TPR=100% (4/4), FPR=11.75% (elevated, documented), M1 τ=10.66 / π=4.55 (formula v0.1) |
 | `chain_profile_ethereum.md` | ⏳ pending | — | Complete ETH profile (pending formalized M1) |
 | `chain_profile_solana.md` | ⏳ pending | — | SOL profile (pending π calibration July 2026) |
 | `chain_profile_polygon.md` | ⏳ pending | — | POL profile (pending backtest execution) |

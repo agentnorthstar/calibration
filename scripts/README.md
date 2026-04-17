@@ -120,8 +120,8 @@ python m1_eth.py    # → M1=5.07 for Ethereum τ (rhythm_ratio, The Merge)
 python m1_pol.py    # → M1 for Polygon τ (rhythm_ratio) and π (sigma_ratio)
 ```
 
-**Expected ETH result:** M1=5.07 ✅ — exact match with published value (methodology §10.1)
-**POL note:** Published ANS value is 7.37 (preliminary session calculation). Formula §10.1 result is in `pol_m1_results.csv`. ANS will be updated on next calibration cycle.
+**Expected ETH result:** M1=5.07 ✅ — exact match with methodology §10.3
+**Expected POL result:** τ M1=10.66 (Reorg Storm) · π M1=4.55 (Gas Crisis) ✅ — matches methodology §10.3 and ANS registry (updated 2026-04-17, calibration_log #018)
 
 ---
 

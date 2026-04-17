@@ -14,7 +14,8 @@ period: "2020-06-01 → 2023-12-31"
 # Backtest Polygon — Structural Signal Validation 2020–2024
 
 > **Status:** MEDIUM event-based — TPR=100% (4/4 events), FPR=11.75% (elevated — see note)
-> **M1 Stability Score:** 7.37
+> **M1 Stability Score — τ (rhythm_ratio, Reorg Storm):** 10.66 · **π (sigma_ratio, Gas Crisis):** 4.55
+> *(formula v0.1 — `scripts/m1_pol.py`. Previously published as scalar 7.37 — session estimate, retired in calibration_log #018)*
 
 ---
 
@@ -117,7 +118,8 @@ Cross sweep (sigma × size × tx) — best sweep point detecting all 4 events:
 | threshold_d2_sigma | 1.14 |
 | threshold_d2_size | 1.18 |
 | threshold_d2_tx | 1.23 |
-| M1 Stability Score | **7.37** |
+| M1 τ (rhythm_ratio · Reorg Storm) | **10.66** |
+| M1 π (sigma_ratio · Gas Crisis) | **4.55** |
 | Confidence | MEDIUM event-based |
 
 ---
@@ -152,7 +154,9 @@ The Polygon 2020–2023 event catalog is less documented than Ethereum's. Some o
   "threshold_d2_size": 1.18,
   "threshold_d2_tx": 1.23,
   "continuity_p10": null,
-  "m1_score": 7.37,
+  "m1_tau": 10.66,
+  "m1_pi": 4.55,
+  "m1_method": "formula_v0.1 (scripts/m1_pol.py)",
   "calibration_method": "event-based",
   "confidence": "MEDIUM",
   "validated_date": "2026-04-17",
