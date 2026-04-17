@@ -3,7 +3,10 @@
 These scripts allow **independent reproduction** of Invarians backtests
 from public BigQuery data.
 
-> **Scope:** These scripts reproduce TPR/FPR results and threshold sweeps. The **M1 Stability Score** (methodology section 10.1) is computed separately and is not integrated in the current sweep scripts. Running `sweep_eth.py` will reproduce FPR=1.23% and TPR=100% (4/4) for ETH — not the M1 value of 5.07. A dedicated `m1_*.py` script is planned for a future release.
+> **Scope:** These scripts reproduce TPR/FPR results, threshold sweeps, and M1 Stability Scores.
+> Running `sweep_eth.py` reproduces FPR=1.23% and TPR=100% (4/4) for ETH.
+> Running `m1_eth.py` reproduces M1=5.07 for ETH (formula §10.1 — validated ✅).
+> Running `m1_pol.py` computes M1 for POL using formula §10.1 (τ and π signals separately).
 
 ---
 
@@ -110,5 +113,17 @@ All scripts follow the same protocol:
 
 ---
 
-*Scripts created March 2026 — Invarians calibration v0.4*
+## M1 Stability Score
+
+```bash
+python m1_eth.py    # → M1=5.07 for Ethereum τ (rhythm_ratio, The Merge)
+python m1_pol.py    # → M1 for Polygon τ (rhythm_ratio) and π (sigma_ratio)
+```
+
+**Expected ETH result:** M1=5.07 ✅ — exact match with published value (methodology §10.1)
+**POL note:** Published ANS value is 7.37 (preliminary session calculation). Formula §10.1 result is in `pol_m1_results.csv`. ANS will be updated on next calibration cycle.
+
+---
+
+*Scripts created March–April 2026 — Invarians calibration v0.4*
 *Data sources: Google BigQuery public datasets (free with GCP account)*
