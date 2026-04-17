@@ -8,7 +8,7 @@ audience: [ai-agents, developers, researchers]
 
 # Invarians — Méthode de mesure structurelle des blockchains
 
-> **Statut :** draft — en attente de validation par backtest avant publication finale.
+> **Statut :** v0.4 — calibrations ETH/SOL/POL validées event-based. Scripts M1 disponibles (`m1_eth.py` ✅, `m1_pol.py` — voir note §10.3). Implémentation complète script M1 prévue v0.5.
 
 ---
 
