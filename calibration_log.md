@@ -503,5 +503,40 @@ Selected target: **~3% D2 (P97 over 30d)** — consistent with L1 FPR accounting
 
 ---
 
+## Entry #017 — April 17, 2026 — Polygon recalibration v2 (4 events)
+
+**Type:** Event-detection recalibration — τ + π
+**Chain:** polygon (L1)
+**Trigger:** Heimdall/Bor Incident (January 2023) added to ground truth — requires lower τ to detect (signal ratio=2%). v1 (March 2026, #008/#009) calibrated on 3 events only.
+
+**Previous values (v1 — calibration_log #008/#009):**
+- `rhythm_p90 = 1.12` · `sigma_demand = 1.50` · `size_demand = 1.40` · `tx_demand = 1.60`
+- FPR combined = 1.20% · Events = 3/3 · M1 = 8.06
+
+**New values (v2):**
+- `rhythm_p90 = 1.04` · `sigma_demand = 1.14` · `size_demand = 1.18` · `tx_demand = 1.23`
+- FPR combined = 11.75% · Events = 4/4 · M1 = 7.37
+
+**Ground truth events (v2):**
+
+| Event | Date | Type | Detected | Latency |
+|---|---|---|---|---|
+| Network Halt | 2021-03 | τ structural | ✅ TP | +22.2h |
+| Gas Crisis | 2021-05 | π demand | ✅ TP | +3.5h |
+| Heimdall/Bor Incident | 2023-01 | τ structural | ✅ TP | +35.2h |
+| Reorg Storm | 2023-02 | τ structural | ✅ TP | +6.4h |
+
+**Why FPR increased from 1.20% to 11.75%:**
+Threshold_s2=1.04 is the minimum required to detect the Heimdall/Bor Incident (signal ratio ~2% above baseline). At τ≥1.05, Heimdall/Bor is missed. The FPR increase is a structural consequence of the tight threshold combined with Polygon's high on-chain volatility during 2021–2022 DeFi/NFT boom. Documented in `backtest_polygon.md` section 8.
+
+**Confidence:** MEDIUM event-based (FPR elevated — documented)
+**Backtest period:** 2020-06-01 → 2023-12-31 · 28,744 windows (Φ=1800)
+**FPR τ (sweep):** 11.84% at threshold_s2=1.04
+**FPR τ+π (combined):** 11.75%
+**Scripts:** `BIGDATA/backtest_pol.py` · `BIGDATA/sweep_pol.py` · `BIGDATA/sweep_pol_d2.py`
+**Deployed:** 2026-04-17 · `supabase functions deploy attestation`
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries — additions at end of file only.*

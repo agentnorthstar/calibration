@@ -197,7 +197,7 @@ ORACLE
 | Chaîne | threshold_s2 | Événements validés | FPR_τ | Confidence | Statut |
 |--------|-------------|-------------------|-------|------------|--------|
 | **Ethereum** | **1.12** | The Merge (sept 2022) · Shanghai Upgrade (avril 2023) | 0.38% | **MEDIUM event-based** | ✅ publié |
-| Polygon τ | en cours | Backtest BigQuery Q2 2026 | — | pending | ⏳ |
+| **Polygon** | **1.04** | Network Halt · Gas Crisis · Heimdall/Bor · Reorg Storm (2021–2023) | 11.75% | **MEDIUM event-based** | ✅ publié |
 | Solana τ | en cours | Backtest outages — données mi-juin 2026 | — | pending | ⏳ |
 | Avalanche τ | en cours | Calibration event-based juillet 2026 | — | pending | ⏳ |
 | Arbitrum τ | Dormant | Sequencer régulier par design — signal non discriminant | — | Dormant | — |
@@ -209,7 +209,7 @@ ORACLE
 | Chaîne | D2 logic | sigma | size | tx | FPR combiné (τ+π) | Confidence | Statut |
 |--------|----------|-------|------|----|--------------------|------------|--------|
 | **Ethereum** | **2 of 3** | **1.10** | **1.20** | **1.10** | **1.23%** | **MEDIUM event-based** | ✅ publié |
-| Polygon π | en cours | Backtest BigQuery Q2 2026 | — | — | — | pending | ⏳ |
+| **Polygon** | **2 of 3** | **1.14** | **1.18** | **1.23** | **11.75%** | **MEDIUM event-based** | ✅ publié |
 | Solana π | en cours | Données exploitables mi-juin 2026 | — | — | — | pending | ⏳ |
 | Avalanche π | en cours | Calibration event-based juillet 2026 | — | — | — | pending | ⏳ |
 | Base π | MEDIUM statistique en prod | Calibration event-based Phase D (Q2-Q3 2026) | — | — | — | pending | ⏳ |
