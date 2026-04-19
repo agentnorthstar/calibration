@@ -1,0 +1,92 @@
+{
+  "train_window": {
+    "start": "2020-01-01",
+    "end": "2022-07-31"
+  },
+  "test_window": {
+    "start": "2022-09-01",
+    "end": "2023-12-31"
+  },
+  "train_events": [
+    "DeFi Summer",
+    "NFT Mania"
+  ],
+  "test_events": [
+    "The Merge",
+    "Shanghai Upgrade"
+  ],
+  "threshold_s2_fixed": 1.12,
+  "caveat_s2": "threshold_s2 held fixed; no \u03c4-type event exists in the train window (pre-2022-09), so threshold_s2 cannot be temporally cross-validated.",
+  "best_on_train": {
+    "sigma": 1.15,
+    "size": 1.3,
+    "tx": 1.1,
+    "tpr_train_k": 2,
+    "tpr_train_n": 2,
+    "tpr_train": 1.0,
+    "fpr_train_k": 165,
+    "fpr_train_n": 17031,
+    "fpr_train": 0.009688215606834596
+  },
+  "published_params": {
+    "sigma": 1.1,
+    "size": 1.2,
+    "tx": 1.1
+  },
+  "test_results_train_selected": {
+    "tpr": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "ci95": [
+        0.15811388300841897,
+        1.0
+      ]
+    },
+    "fpr": {
+      "k": 20,
+      "n": 12209,
+      "rate": 0.0016381358014579408,
+      "ci95": [
+        0.0010008940531650024,
+        0.0025288396327670395
+      ]
+    },
+    "events": [
+      {
+        "name": "The Merge",
+        "tp": true,
+        "latency_h": 18.33,
+        "n_window": 71,
+        "n_detected": 1
+      },
+      {
+        "name": "Shanghai Upgrade",
+        "tp": true,
+        "latency_h": 22.78,
+        "n_window": 73,
+        "n_detected": 1
+      }
+    ]
+  },
+  "test_results_published_params": {
+    "tpr": {
+      "k": 2,
+      "n": 2,
+      "rate": 1.0,
+      "ci95": [
+        0.15811388300841897,
+        1.0
+      ]
+    },
+    "fpr": {
+      "k": 79,
+      "n": 12209,
+      "rate": 0.006470636415758867,
+      "ci95": [
+        0.005126113007568495,
+        0.008057910862489217
+      ]
+    }
+  }
+}
