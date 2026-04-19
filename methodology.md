@@ -700,11 +700,11 @@ DEMAND (L2)    →  sequencer reacts  →  BATCH SUBMISSION (L1)
 
 1. **Mono-signal vs multi-signal.** On L1, D2 requires 2 of 3 dims (sigma + size + tx) — multi-signal consensus, combined FPR ~1.2%. On L2, `sigma_ratio` is the only reliable signal on BASE/OP (size and tx not event-calibrated). A mono-signal threshold placed at the same percentile as L1 produces a structurally higher FPR. L2 thresholds are not numerically comparable to L1 thresholds.
 
-2. **Statistical vs event-based.** L1 thresholds are derived by event-detection (BigQuery — The Merge, Solana outages, Polygon Reorg Storm). L2 thresholds are statistical (percentile on production distribution) — no calibrating L2 event available before Phase D (Dune, Q2-Q3 2026).
+2. **Statistical vs event-based.** L1 thresholds are derived by event-detection (BigQuery — The Merge, Solana outages, Polygon Reorg Storm). L2 thresholds are statistical (percentile on production distribution). The forensic on-chain signal `batch_gap_seconds` (§9.3b) is available in live data since 2026-03-17; retroactive event-detection calibration awaits the archive node replay programmed Q3 2026 (see §9.3b).
 
 **L2 calibration status:**
 - Thresholds in production (operational), derived by statistical P97 method on ≥30d
-- Event-based calibration (Phase D — Dune): Q2-Q3 2026
+- Event-based calibration (Phase D — archive node replay, §9.3b): Q3 2026
 - Numerical thresholds published in `ans_registry` only after Phase D validation
 
 ### 9.2b L2 — μ layer (Composition — Phases A/B)
@@ -722,11 +722,56 @@ of activity (more complex transactions, not necessarily more numerous).
 
 | Metric | Computation | Phase | Chains | Signal |
 |---------|--------|-------|---------|--------|
-| `publish_latency_seconds` | t_L1_block − last_timestamp_L2 | **Phase C** | ARB, BASE, OP | L1 batch publication delay |
+| `publish_latency_seconds` | t_L1_block − last_timestamp_L2 | **Phase C** | ARB, BASE, OP | L1 batch publication delay (sampling-biased, see §9.3b) |
 | `calldata_bytes` | input.len() or blob_count×131072 | **Phase C** | ARB, BASE, OP | Batch size submitted to L1 |
 | `calldata_per_tx` | calldata_bytes / tx_count_ref | **Phase C** | ARB, BASE, OP | Compression efficiency per tx (approx) |
 | `blob_count` | len(blobVersionedHashes) | **Phase C** | BASE, OP | Number of EIP-4844 blobs used |
 | `blob_usage` | blob_count / 6 | **Phase C** | BASE, OP | Blob market saturation (cross-L2 resource) |
+| `batch_gap_seconds` *(derived)* | `l1_block_timestamp − LAG(l1_block_timestamp) OVER (PARTITION BY chain ORDER BY l1_block_timestamp)` | **Phase C — derived** | ARB, BASE, OP | Sequencer cadence signal (pure on-chain) |
+
+### 9.3b L2 forensic event detection protocol
+
+Phase C adapter signals were initially intended to feed Phase D event-detection calibration through external historical data. We have since validated that a **purely on-chain forensic protocol** is feasible using the `batch_gap_seconds` signal derived above — removing the dependency on external curation.
+
+**Protocol**
+
+```
+For each L2 batch posting event stored in ans_l2_adapter_signals:
+  batch_gap = l1_block_timestamp(n) − l1_block_timestamp(n−1)   -- same chain, consecutive
+
+Distribution baselined per chain → define incident threshold
+Incident candidate = any batch_gap > N × nominal_ceiling
+```
+
+**Current distribution** (n = 93,094 gap observations, 2026-03-17 → 2026-04-19)
+
+| chain | n | p50 | p90 | p99 | p99.9 | max |
+|-------|---|-----|-----|-----|-------|-----|
+| arbitrum | 23,519 | 120 s | 192 s | 252 s | 288 s | 732 s |
+| base | 60,870 | 48 s | 60 s | 84 s | 132 s | 312 s |
+| optimism | 8,705 | 324 s | 432 s | 504 s | 564 s | 744 s |
+
+**Interpretation of the ceiling**
+
+The `max_gap` values (ARB ≈ 12 min, OP ≈ 12 min, BASE ≈ 5 min) reflect the **protocol-level batch timeout** — the safety mechanism by which a sequencer posts whatever it has accumulated when the configured inactivity window elapses. These are not incidents; they are the natural upper bound of the nominal regime.
+
+**Provisional forensic thresholds** (candidate — awaiting ground truth validation)
+
+| chain | protocol ceiling | incident threshold candidate (3× ceiling) |
+|-------|------------------|-------------------------------------------|
+| arbitrum | ~720 s (12 min) | > 2,160 s (~36 min) |
+| base | ~310 s (5 min) | > 930 s (~15 min) |
+| optimism | ~740 s (12 min) | > 2,220 s (~37 min) |
+
+**Calibration status**
+
+The 2026-03-17 → 2026-04-19 observation window contains **no L2 sequencer stress event** — p99.9/p50 ratios range from 1.74× to 2.75×, consistent with clean operations. The candidate thresholds above are architecturally defensible but cannot be TPR/FPR-validated on this window.
+
+**Path to event-based validation — archive node replay (Q3 2026)**
+
+A retroactive L1 scan of the ARB SequencerInbox, BASE BatchInbox, and OP BatchInbox on an Ethereum archive node will extend the `ans_l2_adapter_signals` history to cover previously documented L2 sequencer incidents (e.g. OP 2024-02-15, BASE 2024-09-05). This replay uses the same adapter logic currently running in production — no external indexer or third-party platform is required.
+
+Upon completion of the archive replay, a sweep over the candidate thresholds against the extended incident set will produce TPR/FPR with Clopper-Pearson IC95%, as for L1 chains. At that point L2 thresholds will graduate from MEDIUM statistical to MEDIUM event-based (forensic) and be publishable in `ans_registry`.
 
 ### 9.4 Synthesis by layer and state framework
 
@@ -750,7 +795,7 @@ Target L2 classification (post Phase D):
 | ↑ | ↑ | stable | Complex adoption — intensive DeFi |
 | ↑ | ↑ | ↑ | Real stress — congestion at all layers |
 
-> This grid will be calibrated by Dune backtest on historical L2 events (Phase D).
+> This grid will be calibrated by archive node replay on historical L2 incidents (Phase D, Q3 2026 — see §9.3b).
 
 ### 9.5 Bridge — Transmission layer
 
@@ -813,10 +858,10 @@ BS* = operational state of the channel
 | Layer | Fast EMA | Slow EMA | Calibrated baselines |
 |--------|-----------|-----------|-------------------|
 | L1 τ+π | ✅ (2/11, ~10h) | ✅ (2/721, ~30d) | ETH: MEDIUM. Others: LOW or pending |
-| L2 π+μ | ✅ (2/11, ~10h) | ✅ (2/721, ~30d) | all LOW — Dune calibration pending |
+| L2 π+μ | ✅ (2/11, ~10h) | ✅ (2/721, ~30d) | all LOW — archive node calibration pending (Q3 2026) |
 | L2 σ (adapter) | ⏳ not yet | ⏳ not yet | To be implemented post Phase D |
 
-> Phase C signals are currently stored **raw** (no EMA). The σ EMA will be added after Dune calibration (Phase D, Q2-Q3 2026).
+> Phase C signals are currently stored **raw** (no EMA). The σ EMA will be added after archive node calibration (Phase D, Q3 2026 — see §9.3b).
 
 ---
 
@@ -954,7 +999,7 @@ in the `*_m1_results.csv` files.
 - [x] Phase A: complexity_ratio L2 (17 March 2026)
 - [x] Phase B: gas_complexity_ratio L2 (17 March 2026)
 - [x] Phase C: invarians-l2-adapter — publish_latency, calldata_per_tx, blob_usage (17 March 2026)
-- [ ] Phase D: Dune calibration — Phase A+C thresholds on historical L2 events (Q2-Q3 2026)
+- [ ] Phase D: archive node replay calibration — Phase A+C thresholds validated on historical L2 incidents via retroactive L1 scan (Q3 2026, see §9.3b)
 - [ ] EMA σ: add fast/slow EMA on Phase C signals (after Phase D) — `σ_ratio = σ / EMA(σ)`
 - [ ] L2 classifier (π, μ, σ): implement the states (see section 9.4) after Phase D calibration
 - [ ] **Phase 2 — Bridge BS*** : invarians-bridge module (ARB · OP/BASE · Across · LayerZero · CCTP) — latency_ratio, backlog_ratio, BS1/BS2 states (Q3 2026)

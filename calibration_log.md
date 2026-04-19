@@ -957,5 +957,56 @@ No production change. Published M1 values and their §10.3 table unchanged.
 
 ---
 
+## Entry #026 — April 19, 2026 — L2 Phase D protocol revised (archive node replay, supersedes Dune plan)
+
+**Chains:** arbitrum, base, optimism
+**Affected documents:** `methodology.md §9.3, §9.3b, §9.4, §9.6`
+**Historical entries superseded (forward-looking Dune references only):** earlier L2 entries that cited "Dune event-detection calibration (Phase D, Q2-Q3 2026)" — their record of past decisions remains intact; only the forward-looking sentences are superseded by this entry.
+
+**Context**
+
+Throughout the early L2 build (March 2026), forward-looking statements in the L2 log entries planned event-detection calibration via Dune historical data (Q2-Q3 2026). A review session on 2026-04-19 concluded this plan was methodologically imprecise for two reasons:
+
+1. **Dune does not curate an incident registry.** It indexes on-chain data and enables measurement queries, but the list of "L2 sequencer incidents" still requires editorial curation from operator status pages, postmortems, and community trackers. Crossing narrative ground truth with on-chain measurement introduces editorial bias that is inconsistent with the deterministic reproducibility standard applied to L1 calibrations.
+2. **An equivalent purely on-chain signal is already in production.** The `ans_l2_adapter_signals` table (populated since 2026-03-17 by the `invarians-l2-adapter` service) contains per-batch L1 timestamps for the ARB SequencerInbox, BASE BatchInbox, and OP BatchInbox. The derived `batch_gap_seconds` signal (SQL window function, no code change required) produces a clean sequencer cadence distribution per chain with no invariant-cadence sampling bias that affects `publish_latency_seconds`.
+
+**Validation of the forensic signal (2026-04-19, n = 93,094 gap observations, 2026-03-17 → 2026-04-19)**
+
+| chain | p50 | p90 | p99 | p99.9 | max | p99.9/p50 |
+|-------|-----|-----|-----|-------|-----|-----------|
+| arbitrum | 120 s | 192 s | 252 s | 288 s | 732 s | 2.40× |
+| base | 48 s | 60 s | 84 s | 132 s | 312 s | 2.75× |
+| optimism | 324 s | 432 s | 504 s | 564 s | 744 s | 1.74× |
+
+The `max_gap` on each chain corresponds to the protocol-level batch timeout (~12 min on ARB/OP, ~5 min on BASE). No L2 sequencer stress event occurred in the 2026-03-17 → 2026-04-19 window. The clean ratios confirm the signal is valid; the absence of a tail event in the window confirms a historical extension is needed for event-based validation.
+
+**Decision**
+
+Phase D is re-scoped as follows:
+
+- **Source of ground truth**: `ans_l2_adapter_signals` (existing prod pipeline, no external indexer).
+- **Event definition**: `batch_gap_seconds > N × protocol_ceiling` per chain (provisional candidate N=3, to be validated).
+- **Historical extension**: retroactive scan of the same three L1 inbox contracts on an Ethereum archive node (Q3 2026), producing an extended `ans_l2_adapter_signals` back-fill covering documented L2 incidents (e.g. OP 2024-02-15, BASE 2024-09-05, ARB 2023-2024 events).
+- **Sweep + TPR/FPR**: identical methodology to L1 calibrations (Clopper-Pearson IC95% on detection rate; wide-n FPR estimate on the calm distribution).
+- **Publication gate**: thresholds enter `ans_registry` as MEDIUM event-based (forensic) only after TPR/FPR validation on the archive-replayed incident set.
+
+**Rationale — why archive node, not Dune**
+
+- Reproducibility: any auditor with RPC access to an Ethereum archive node can replay the exact same scan. Dune queries depend on an indexer pipeline outside our control.
+- Minimalism: the existing L2 adapter pipeline is the only piece of infrastructure involved. No new ETL.
+- Consistency: the L2 ground truth signal becomes homogeneous with the L1 calibration chain — both are derived from L1 block-level data, not external platforms.
+
+**Scope of change**
+
+- `methodology.md` — §9.3 gains `batch_gap_seconds` as a derived signal; new §9.3b documents the forensic protocol, current distribution, provisional thresholds, and archive-replay roadmap. All five occurrences of "Dune" in §9.2, §9.4, §9.6, and §12 are replaced with explicit references to the archive node replay protocol.
+- `calibration_log.md` — this entry. No rewrite of past entries (their forward-looking Dune references are now superseded, not falsified).
+- No production change. The L2 adapter continues collecting, unchanged.
+
+**Next step**
+
+Q3 2026 — archive node replay execution + TPR/FPR sweep + publication of a dedicated L2 backtest document analogous to the existing L1 backtests.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries — additions at end of file only.*
