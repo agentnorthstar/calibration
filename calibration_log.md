@@ -82,7 +82,7 @@ Each EMA reset, incident, or parameter change is documented here with its ration
 **TPR:** 100% on known structural events (n=2)
 **FPR τ only:** 2.50%
 **Confidence:** MEDIUM
-**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Deployed:** Supabase project (production), March 16, 2026
 **Script:** scripts/sweep_eth.py
 
 ---
@@ -107,7 +107,7 @@ Each EMA reset, incident, or parameter change is documented here with its ration
 **TPR:** 100% (4/4 ground truth events)
 **Combined FPR:** 1.23%
 **Confidence:** MEDIUM
-**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Deployed:** Supabase project (production), March 16, 2026
 **Script:** scripts/sweep_eth_d2.py + scripts/sweep_eth_d2_full.py
 
 ---
@@ -143,7 +143,7 @@ Each EMA reset, incident, or parameter change is documented here with its ration
 - Blocker: to address before any commercial approach on Solana.
 
 **Confidence τ:** MEDIUM
-**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 16, 2026
+**Deployed:** Supabase project (production), March 16, 2026
 **Scripts:** scripts/backtest_sol.py + scripts/sweep_sol.py
 
 ---
@@ -170,7 +170,7 @@ Each EMA reset, incident, or parameter change is documented here with its ration
 **TPR τ:** 1/1 detectable τ events
 **FPR τ:** 0.78%
 **Confidence:** MEDIUM
-**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 17, 2026
+**Deployed:** Supabase project (production), March 17, 2026
 **Script:** scripts/sweep_pol.py
 
 ---
@@ -200,7 +200,7 @@ Each EMA reset, incident, or parameter change is documented here with its ration
 **TPR:** 100% (3/3 events)
 **Combined FPR:** 1.20%
 **Confidence:** MEDIUM
-**Deployed:** Supabase project `sdpilypwumxsyyipceew`, March 17, 2026
+**Deployed:** Supabase project (production), March 17, 2026
 **Script:** scripts/sweep_pol_d2.py
 
 ---
@@ -398,8 +398,8 @@ always be S1D1 until complexity_ratio calibration (Phase A — ROADMAP 1-bis).
 | Optimism | 92.4% | 7.6% | ✅ Within target 3-8% |
 
 **Modified files:**
-- `invarians-oracle/supabase/functions/attestation/index.ts` — `L2_THRESHOLDS` Record per chain · `classifyL2State` chain-aware · calibration version `"v2"`
-- `invarians-oracle/supabase/migration_l2_states.sql` — CASE per chain in `v_l2_states`
+- Attestation edge function — `L2_THRESHOLDS` Record per chain · `classifyL2State` chain-aware · calibration version `"v2"`
+- L2 classification view migration — CASE per chain in `v_l2_states`
 
 **Deployments:**
 - Attestation Edge Function redeployed: `supabase functions deploy attestation` ✅
@@ -495,7 +495,7 @@ Selected target: **~3% D2 (P97 over 30d)** — consistent with L1 FPR accounting
 | OP | 1.06 | **1.12** | p97 (1.1216) | ~3% | Exactly p97 |
 | ARB | 1.20 | 1.20 (unchanged) | dormant | ~0% | sigma_ratio constant 1.0000 — ARB gasLimit incompatible |
 
-**Status:** ✅ Deployed — April 16, 2026 · `supabase functions deploy attestation` · project sdpilypwumxsyyipceew
+**Status:** ✅ Deployed — April 16, 2026 · `supabase functions deploy attestation` · production project
 **Confidence:** MEDIUM — statistical P97 calibration over 30d. No event-based validation.
 **Next step:** Phase D (Q2-Q3 2026) — Dune backtest on historical L2 events ARB/BASE/OP to validate TPR/FPR on real incidents.
 **Blocker:** event-based validation required before commercial approach on L2 (unchanged since #014).

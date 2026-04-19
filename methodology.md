@@ -241,7 +241,7 @@ All published TPR and FPR values are accompanied by an **exact Clopper-Pearson 9
 | 10/10 | 100% | [69.15% ; 100.00%] |
 | 20/20 | 100% | [83.16% ; 100.00%] |
 
-**Only the growth of n tightens the IC** — and n = number of real, non-reproducible blockchain events. Hence the event-based strategy + near-miss pipeline (see `pedagogie.md`) to progressively enrich the ground truth.
+**Only the growth of n tightens the IC** — and n = number of real, non-reproducible blockchain events. Hence the event-based strategy plus a near-miss pipeline (flagging sub-threshold windows that approach the operating point) to progressively enrich the ground truth.
 
 **FPR**: n_normal ≫ 10,000 on the 3 chains → tight ICs (<0.5% on ETH, <0.3% on POL, <0.1% on SOL). The noise measurement is statistically robust, even at high FPR (POL 14.57% ± 0.27%).
 
@@ -336,7 +336,7 @@ This section enumerates what an attacker would have to do to make Invarians lie 
 ### Trust model today
 
 - **Who signs:** a single operational node computes invariants from an RPC feed and signs attestations with an Ed25519 private key.
-- **Custody:** the signing key is on one VPS (Hetzner). Rotation is manual.
+- **Custody:** the signing key is on one VPS. Rotation is manual.
 - **TTL:** attestations expire 1h after signing time.
 - **HMAC-SHA256:** wrapper for the API transport layer (service → clients).
 - **Record store:** historical attestations in Supabase (not yet anchored on-chain — see Attack 6 below).
@@ -436,7 +436,7 @@ Invarians does not observe the mempool. Mempool flooding — the classic cheap D
 
 | # | Attack | Cost / difficulty | Current defense | Planned defense | Target date |
 |---|--------|-------------------|-----------------|-----------------|-------------|
-| 1 | Signer key theft | Shell access to VPS | TTL 1h + manual rotation | Chainlink DON | Q4 2026 |
+| 1 | Signer key theft | Shell access to the signing host | TTL 1h + manual rotation | Chainlink DON | Q4 2026 |
 | 2 | RPC eclipse | Control of RPC feed | RPC diversity | Multi-node observation | Q3 2026 |
 | 3 | Replay / post-dating | Trivial but short-lived | Signed timestamp + TTL 1h | Unchanged | — |
 | 4 | Single-node operator trust | Structural | Public reproducibility | Chainlink DON then native net | Q4 2026 / 2027 |

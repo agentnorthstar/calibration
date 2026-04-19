@@ -65,13 +65,16 @@ FPR is computed as "alarms outside labeled events / normal windows". But "normal
 
 ### 2.2 Methodological
 
-**EMA window α not empirically studied.**
-`α_fast = 2/11 (~10h)` and `α_slow = 2/721 (~30d)` were chosen by convention. A sensitivity analysis across `α ∈ {2/7, 2/11, 2/15, 2/21}` has not been published. See `methodology.md §4.5` (acknowledged) and §3 below (Q3 2026).
+**EMA window α_fast — sensitivity published (ETH).**
+`α_fast = 2/11 (~10h)` and `α_slow = 2/721 (~30d)` were chosen by convention. A sensitivity sweep across `α ∈ {2/5, 2/7, 2/11, 2/15, 2/21, 2/31}` is now published for ETH — see `backtest_ethereum.md §9`. The published α = 2/11 is confirmed as the lower knee of the operating frontier: below N = 10 Shanghai is missed, above N = 10 FPR grows without improving latency. Same sweep to be run on POL/SOL (Q3 2026).
 
 **Φ window size not yet sensitivity-studied.**
-Production values: `Φ = 280` blocks for ETH, `Φ = 720` for POL, `Φ = 800` slots for SOL, `Φ = 720` for AVAX, `Φ = 1800` for L2 rollups. All production values produce a ~1h sampling cadence across chains. No published Φ sensitivity sweep yet — same status as α.
+Production values: `Φ = 280` blocks for ETH, `Φ = 720` for POL, `Φ = 800` slots for SOL, `Φ = 720` for AVAX, `Φ = 1800` for L2 rollups. All production values produce a ~1h sampling cadence across chains. No published Φ sensitivity sweep yet.
 
 > **POL backtest/production alignment — resolved 2026-04-19.** The v1.0 POL backtest used Φ=1800 while production runs with Φ=720. This gap was closed by re-extracting at Φ=720 and republishing `backtest_polygon.md` v2.0. See `calibration_log.md #023`. TPR preserved at 100% (4/4), FPR shifts from 11.75% → 14.57%, mean detection latency drops from 16.8h → 3.95h. ETH, SOL, and L2 backtests were already production-aligned.
+
+**SOL — narrow on-chain observation window per invariant.**
+On Solana, `Φ = 800` slots × ~0.4 s block time ≈ **5 min of on-chain observation per invariant**, while the sampling cadence remains hourly. The net effect is that ~8% of on-chain time is actually observed (5 min observed per 60 min wall-clock). This is a deliberate trade-off of the current calibration: hourly cadence matches the operational tempo of downstream consumers, and 800 slots per invariant is a statistically dense sample for mean estimation. The trade-off is that **short, isolated spikes (<5 min) falling between two invariants can be missed** on SOL. The instrument remains sound for regime detection and for events lasting more than a few minutes (all four SOL outages in the labelled ground truth have durations > 30 min). A re-evaluation of the cadence/window balance on SOL is on the roadmap (see §3).
 
 **M1 formula v0.1 is provisional.**
 The Metric Stability Score formula (§10 of `methodology.md`) is version 0.1, documented as provisional in `calibration_log.md` Entry #018. Known theoretical weaknesses: `max_event` is an extreme order statistic, not robust to outliers; no bootstrap CI on M1 itself; cross-chain comparisons are not z-score normalized. A v0.2 with quantile-based numerator and bootstrap CI is planned.
@@ -176,7 +179,7 @@ Internal operating procedure when a per-chain signal drifts out of calibration:
 This protocol is currently exercised manually by operators. It will be automated by the AgentNorthStar Calibration Agent (MCP, May 2026).
 
 **Multi-RPC collector architecture.**
-The collector that feeds the invariant computation does not rely on a single RPC per chain. Per-chain diversity is operational today: multiple RPC endpoints per network with failover, source-level agreement checks on block height, and rejection of inconsistent responses. This is what the REST API at `sdpilypwumxsyyipceew.supabase.co/functions/v1/attestation/` has been serving since before this document was published. Public architectural documentation scheduled Q3 2026 alongside the MCP server release notes.
+The collector that feeds the invariant computation does not rely on a single RPC per chain. Per-chain diversity is operational today: multiple RPC endpoints per network with failover, source-level agreement checks on block height, and rejection of inconsistent responses. This is what the REST API at the public attestation endpoint (`/functions/v1/attestation/`) has been serving since before this document was published. Public architectural documentation scheduled Q3 2026 alongside the MCP server release notes.
 
 **MCP server and A2A discovery — schema published.**
 The MCP server at [`agentic.invarians.com`](https://agentic.invarians.com) is deployed with stable discovery endpoints:
