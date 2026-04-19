@@ -1,0 +1,148 @@
+{
+  "ETH": {
+    "axis": "tau",
+    "n_events": 2,
+    "n_sweep_points": 8,
+    "auc": 0.9777,
+    "published": {
+      "threshold_s2": 1.12,
+      "fpr_published": 0.0123,
+      "tpr_published": 1.0,
+      "n_events_used_for_roc": 2,
+      "note": "Full-chain FPR=1.23% uses 2-of-3 D2; \u03c4-only ROC below isolates the \u03c4 axis."
+    },
+    "sweep": [
+      {
+        "threshold_s2": 1.05,
+        "fpr": 0.1056,
+        "tpr": 1.0
+      },
+      {
+        "threshold_s2": 1.08,
+        "fpr": 0.0486,
+        "tpr": 1.0
+      },
+      {
+        "threshold_s2": 1.1,
+        "fpr": 0.0326,
+        "tpr": 1.0
+      },
+      {
+        "threshold_s2": 1.12,
+        "fpr": 0.025,
+        "tpr": 1.0
+      },
+      {
+        "threshold_s2": 1.15,
+        "fpr": 0.0216,
+        "tpr": 0.5
+      },
+      {
+        "threshold_s2": 1.18,
+        "fpr": 0.0212,
+        "tpr": 0.0
+      },
+      {
+        "threshold_s2": 1.2,
+        "fpr": 0.0212,
+        "tpr": 0.0
+      },
+      {
+        "threshold_s2": 1.25,
+        "fpr": 0.0212,
+        "tpr": 0.0
+      }
+    ]
+  },
+  "SOL": {
+    "axis": "tau",
+    "n_events": 4,
+    "n_sweep_points": 11,
+    "auc": 0.9936,
+    "published": {
+      "threshold_s2": 1.12,
+      "fpr_published": 0.0177,
+      "tpr_published": 1.0,
+      "n_events_used_for_roc": 4,
+      "note": "\u03c4-only (\u03c0 pending calibration July 2026)."
+    },
+    "sweep": [
+      {
+        "param": 1.01,
+        "fpr": 0.3418,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.02,
+        "fpr": 0.2517,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.03,
+        "fpr": 0.1835,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.04,
+        "fpr": 0.1341,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.05,
+        "fpr": 0.0986,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.08,
+        "fpr": 0.0427,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.1,
+        "fpr": 0.0263,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.12,
+        "fpr": 0.0177,
+        "tpr": 1.0
+      },
+      {
+        "param": 1.15,
+        "fpr": 0.0106,
+        "tpr": 0.75
+      },
+      {
+        "param": 1.18,
+        "fpr": 0.0068,
+        "tpr": 0.75
+      },
+      {
+        "param": 1.2,
+        "fpr": 0.0053,
+        "tpr": 0.5
+      }
+    ]
+  },
+  "POL": {
+    "axis": "D2 (3D projection \u2192 Pareto frontier)",
+    "n_events": 4,
+    "n_sweep_points": 64,
+    "n_pareto_points": 1,
+    "auc": 0.9303,
+    "published": {
+      "threshold_s2": 1.04,
+      "fpr_published": 0.1457,
+      "tpr_published": 1.0,
+      "n_events_used_for_roc": 4,
+      "phi": 720,
+      "note": "ROC below is D2-axis projection (\u03c3 \u00d7 size \u00d7 tx). Production-aligned \u03a6=720 since v2.0 (2026-04-19)."
+    },
+    "pareto_frontier": [
+      {
+        "fpr": 0.1395,
+        "tpr": 1.0
+      }
+    ]
+  }
+}
