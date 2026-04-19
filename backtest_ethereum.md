@@ -199,7 +199,7 @@ The method is preferred over the normal approximation for small k/n or k≈0 / k
 
 - The TPR CI is wide because n=4. Even a perfect 4/4 is statistically compatible with a true rate as low as ~40%. A TPR headline of 100% is **not** a predictive guarantee — it is the best estimate given the available events.
 - The FPR CI is narrow because n_normal ≈ 30,000. The measurement of noise is statistically robust.
-- Methodological limit: `pedagogie.md` §"small number of events" explains why enlarging n is the only way to tighten the TPR interval. See also `methodology.md` §4.4.
+- Methodological limit: with event-based TPR at n=2, only the growth of the ground-truth set tightens the confidence interval — parameter tuning cannot compensate for small-sample uncertainty. See `methodology.md` §4.4 for the formal statement and §7 (Enrichment strategies) for the near-miss pipeline.
 
 **Reproduction:**
 
@@ -322,6 +322,15 @@ below all longer-memory alternatives. The calibration is stable — α_fast is
 not a free parameter that could be arbitrarily re-tuned for better numbers.
 
 Chart: `scripts/eth_sensitivity_alpha_chart.png` (TPR/FPR vs N, latency vs N).
+
+**Caveat — small ground-truth set.** These conclusions rest on n = 2 labelled
+τ events (The Merge, Shanghai) and n = 2 labelled π events (DeFi Summer,
+NFT Mania) on ETH. The "knee at α = 2/11" is therefore conditional on this
+specific test set. Adding even one additional τ event to the ground truth
+could shift the knee toward a slightly different α. This is a general
+limitation of event-based calibration on a chain with few historical
+incidents — see §7 and `limitations_and_plans.md §2.1` for the formal
+discussion and the planned ground-truth enrichment pipeline.
 
 ---
 
