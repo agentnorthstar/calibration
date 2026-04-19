@@ -69,7 +69,7 @@ def bootstrap_m1(full_signal, event_vals, n=1000, seed=42, nominal_cap=NOMINAL_C
             float(np.percentile(samples, 2.5)),
             float(np.percentile(samples, 97.5)))
 
-def compute_m1(df, signal_col, events, label):
+def compute_m1(df, signal_col, events, label, canonical_event=None):
     print(f"\n--- M1 {label} ({signal_col}) ---")
     p50    = df[signal_col].median()
     nom    = df[df[signal_col] < NOMINAL_CAP][signal_col]
@@ -90,7 +90,14 @@ def compute_m1(df, signal_col, events, label):
                         "m1": m1, "values": subset.to_numpy()})
     if not results:
         return None
-    best = max(results, key=lambda x: x["max"])
+    if canonical_event is not None:
+        match = [r for r in results if r["event"] == canonical_event]
+        if not match:
+            raise ValueError(f"canonical_event {canonical_event!r} not in results")
+        best = match[0]
+        print(f"    [canonical event pinned: {canonical_event}]")
+    else:
+        best = max(results, key=lambda x: x["max"])
     final_m1 = best["amplitude"] / bruit
     print(f"    → best: {best['event']}  M1={final_m1:.2f}")
 
@@ -115,7 +122,9 @@ def compute_m1(df, signal_col, events, label):
     }
 
 r_tau = compute_m1(df, "rhythm_ratio", EVENTS_TAU, "τ structural")
-r_pi  = compute_m1(df, "sigma_ratio",  EVENTS_PI,  "π demand")
+# π canonical = Gas Crisis (pure demand). See m1_pol.py note.
+r_pi  = compute_m1(df, "sigma_ratio",  EVENTS_PI,  "π demand",
+                   canonical_event="Gas Crisis")
 
 print("\n" + "="*50)
 print("SUMMARY — Φ=720")

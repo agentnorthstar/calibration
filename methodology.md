@@ -925,9 +925,11 @@ conservative floor.
 |---|---|---|---|---|---|
 | ETH τ rhythm_ratio | The Merge | **5.07** | [2.23, 5.12] | 4.32 | 3.90 |
 | POL τ rhythm_ratio (Φ=1800) | Reorg Storm | 10.66 | [4.00, 10.82] | 9.17 | 4.96 |
-| POL π sigma_ratio (Φ=1800) | Network Halt | 8.85 | [3.56, 9.04] | 7.25 | 4.76 |
+| POL π sigma_ratio (Φ=1800) | Gas Crisis | 4.55 | [2.66, 4.65] | 4.08 | 2.08 |
 | POL τ rhythm_ratio (Φ=720) | Reorg Storm | **12.60** | [4.04, 12.74] | 10.68 | 3.01 |
-| POL π sigma_ratio (Φ=720) | Network Halt | 8.66 | [4.55, 8.79] | 8.14 | 3.67 |
+| POL π sigma_ratio (Φ=720) | **Gas Crisis** | **3.59** | [3.27, 3.64] | 3.49 | 1.94 |
+
+Events above match the canonical anchors declared in §10.3. For POL π, the canonical anchor is **Gas Crisis** (a pure-demand event), even though the Network Halt event produces a larger amplitude (M1=8.85 / 8.66 at Φ=1800 / 720). Network Halt is a composite halt+backlog incident and is intentionally not used as the π calibration anchor — keeping Gas Crisis preserves methodological consistency with the formula-v0.1 publication.
 
 **Interpretation:**
 - All published M1 values sit inside their bootstrap CI — sampling is not

@@ -920,9 +920,18 @@ New columns in `*_m1_results.csv`:
 |---|---|---|---|---|---|
 | ETH τ | The Merge | 5.07 | [2.23, 5.12] | 4.32 | 3.90 |
 | POL τ (Φ=1800) | Reorg Storm | 10.66 | [4.00, 10.82] | 9.17 | 4.96 |
-| POL π (Φ=1800) | Network Halt | 8.85 | [3.56, 9.04] | 7.25 | 4.76 |
+| POL π (Φ=1800) | Gas Crisis | 4.55 | [2.66, 4.65] | 4.08 | 2.08 |
 | POL τ (Φ=720) | Reorg Storm | 12.60 | [4.04, 12.74] | 10.68 | 3.01 |
-| POL π (Φ=720) | Network Halt | 8.66 | [4.55, 8.79] | 8.14 | 3.67 |
+| POL π (Φ=720) | Gas Crisis | 3.59 | [3.27, 3.64] | 3.49 | 1.94 |
+
+**Canonical event pinning for POL π:** the compute_m1() helpers now accept a
+`canonical_event` argument. For POL π we pin **Gas Crisis** explicitly — the
+Network Halt event produces a larger amplitude (M1=8.85 at Φ=1800, M1=8.66 at
+Φ=720) but is a composite halt+backlog incident. Gas Crisis is a pure-demand
+event and is the anchor used in §10.3 of methodology.md. Pinning avoids the
+auto-best-event selection picking Network Halt and creating a discrepancy
+between §10.3 (Gas Crisis) and §10.5 (would have been Network Halt). τ still
+uses auto-best-event (Reorg Storm is correctly selected by both rules).
 
 **Reading:**
 - All published M1 values fall inside their bootstrap 95% CI — sampling
