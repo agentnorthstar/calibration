@@ -53,14 +53,14 @@ Public accountability document: every limitation we know about (statistical, met
 
 | File | Status | Date | Description |
 |---------|--------|------|-------------|
-| `methodology.md` | 🟡 draft | 2026-04-17 | Complete method — pipeline, signals, calibration, M1 |
-| `backtest_ethereum.md` | ✅ validated | 2026-04-19 | ETH backtest 2020–2024 — TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.23% IC95% [1.11% ; 1.36%] · §6 Temporal CV: TPR_test=100% (2/2), FPR_test=0.65% with published D2 params |
+| `methodology.md` | 🟡 draft | 2026-04-19 | Complete method — pipeline, signals, calibration, M1 (§10.5 bootstrap 95% CI + P99 variant) |
+| `backtest_ethereum.md` | ✅ validated | 2026-04-19 | ETH backtest 2020–2024 — TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.23% IC95% [1.11% ; 1.36%] · §6 Temporal CV: TPR_test=100% (2/2), FPR_test=0.65% with published D2 params · §9 α_fast sensitivity sweep (knee confirmed at α=2/11) |
 | `backtest_solana.md` | ✅ validated | 2026-03-16 | SOL τ backtest 2021–2024 — TPR_τ=100% (4/4) IC95% [39.76% ; 100%], FPR_τ=1.77% IC95% [1.70% ; 1.84%] · π pending |
-| `calibration_log.md` | 🟡 active | 2026-04-19 | Incident log + decisions — 23 entries |
+| `calibration_log.md` | 🟡 active | 2026-04-19 | Incident log + decisions — 25 entries |
 | `limitations_and_plans.md` | 🟡 living | 2026-04-19 | Known limitations + dated roadmap of corrections — public accountability |
 | `protocol_watch.md` | 🟡 active | 2026-04-11 | EIP and upgrade tracking — 5 entries |
 | `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024 — L2:S1D2 + Bridge:BS2 invisible to fee monitors |
-| `scripts/` | ✅ reproducible | 2026-04-19 | Python + SQL BigQuery scripts — ETH, POL, SOL + h5_composite_demo.py + ci_binomial.py (Clopper-Pearson IC95%) + cv_eth.py (temporal cross-validation) + roc_curves.py (ROC per chain, AUC, POL Φ=720) + POL Φ=720 pipeline (extract_pol_phi720.sql, backtest_pol_phi720.py, sweep_pol_d2_phi720.py, m1_pol_phi720.py). See `scripts/README.md` for full reproduction. |
+| `scripts/` | ✅ reproducible | 2026-04-19 | Python + SQL BigQuery scripts — ETH, POL, SOL + h5_composite_demo.py + ci_binomial.py (Clopper-Pearson IC95%) + cv_eth.py (temporal cross-validation) + roc_curves.py (ROC per chain, AUC, POL Φ=720) + POL Φ=720 pipeline (extract_pol_phi720.sql, backtest_pol_phi720.py, sweep_pol_d2_phi720.py, m1_pol_phi720.py) + sensitivity_alpha_eth.py (α_fast sweep ETH) + M1 bootstrap 95% CI & P99 variant in m1_{eth,pol,pol_phi720}.py. See `scripts/README.md` for full reproduction. |
 | `backtest_polygon.md` | ✅ validated v2.0 | 2026-04-19 | POL backtest 2020–2024 **production-aligned Φ=720** — TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=14.57% IC95% [14.30% ; 14.83%] (elevated, documented), M1 τ=12.60 / π=3.59 (formula v0.1), mean latency 3.95h. See `calibration_log.md #023` for v1→v2 decision. |
 | `chain_profile_ethereum.md` | ⏳ pending | — | Complete ETH profile (pending formalized M1) |
 | `chain_profile_solana.md` | ⏳ pending | — | SOL profile (pending π calibration July 2026) |
