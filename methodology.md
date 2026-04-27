@@ -1,14 +1,14 @@
 ---
 title: "Invarians — Methodology"
-version: "0.4"
+version: "0.5"
 status: draft
-date: "2026-04-17"
+date: "2026-04-27"
 audience: [ai-agents, developers, researchers]
 ---
 
 # Invarians — Structural measurement method for blockchains
 
-> **Status:** v0.4 — ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned — see note §10.3). Complete M1 script implementation planned for v0.5.
+> **Status:** v0.5 — ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned — see note §10.3). Section 13 added: uniform P97/30d calibration for bridges, native bridges Arbitrum/Base/Optimism calibrated 2026-04-22 (cf. `calibration_log.md` `#027`). Complete M1 script implementation planned for v0.6.
 
 ---
 
@@ -1009,10 +1009,96 @@ in the `*_m1_results.csv` files.
 
 ---
 
-*Version 0.4 — Draft — 17 March 2026*
+## 12. Signal taxonomy
+
+Invarians builds exclusively on **physical** and **protocol-infrastructural** signals. Narrative and economic signals are out of scope by design.
+
+### 12.1 Structural-physical (on-chain, deterministic)
+
+Derived from chain state, without any third-party API.
+
+Examples:
+- L1 basefee, block cadence, block gas ratio, reorg depth
+- L2 native batch age (ARB `latestConfirmed`, BASE/OP dispute game timestamps)
+- CCIP on-chain sequence advance (CommitStore `latestSequenceNumberCommitted`)
+- CCTP burn event emission (`MessageSent`)
+
+Property: reproducible by anyone running a full node or an archive RPC. Any disagreement with the attestation is falsifiable against chain state.
+
+### 12.2 Protocol-infrastructural (off-chain, protocol-operated)
+
+Required by the cross-chain protocol itself, not selected by Invarians. Their absence breaks the bridge, not only the signal.
+
+Examples:
+- CCIP RMN `isCursed()` (on-chain read, but semantics owned by the Risk Management Network)
+- CCTP Circle Iris attestation latency and success rate (off-chain service operated by Circle)
+- L2 sequencer health endpoints when exposed
+
+Property: observable and timestampable, but trust is delegated to the protocol operator. Documented as such in every attestation.
+
+### 12.3 Narrative and economic (OUT OF SCOPE)
+
+Excluded from every calibrated signal.
+
+Examples:
+- Token prices, gas price in USD
+- TVL deltas, trading volume
+- Sentiment feeds, governance forum activity
+- News, social signals
+
+Property: reflexive (observer changes the observed), subject to manipulation, not a stable substrate for agent decisions. Such metrics may appear in downstream agent policies, they never enter an Invarians attestation.
+
+### 12.4 Consequence for the panel
+
+Every item in `/v1/attestation/panel` belongs to category 12.1 or 12.2. Category 12.2 items carry an explicit dependency note (e.g. CCTP attestation latency depends on Circle Iris). Category 12.3 is never present.
+
+---
+
+## 13. Bridge thresholds, uniform P97/30d calibration
+
+Bridge thresholds in the panel are calibrated by a single statistical method, applied identically to native bridges, CCIP lanes and CCTP routes. Section 13.1 states the method, 13.2 the guard rails, 13.3 the calibration cycle, 13.4 the limitations.
+
+### 13.1 Method
+
+For every bridge `id` in `panel.bridges[]`, the threshold `threshold_bs1_s` is set at the 97th percentile of its primary latency signal, computed over a rolling 30-day window of clean samples:
+
+- Native bridges (`*/native`) read `last_batch_age_seconds` from `ans_bridge_signals`.
+- CCIP lanes (`*/ccip`) read `last_sequence_advance_s` from `ans_ccip_lane_signals`.
+- CCTP routes (`*/cctp`) read `attestation_latency_p90_s` from `ans_cctp_route_signals`.
+
+Above the threshold the bridge is reported with its degraded state (`BS2` for native, `CS2` for CCIP, `TS2` for CCTP). At or below it, the nominal state (`BS1`, `CS1`, `TS1`).
+
+The same statistical recipe (P97 over 30 days of clean samples) is applied to every bridge. Differences between final thresholds reflect real per-bridge dynamics (sequencer cadence for native rollups, commit phase for CCIP, attestation pipeline for CCTP), not method choice. Each calibrated threshold therefore represents the same statistical position (97th percentile) within its own native distribution, comparable across bridges in that sense.
+
+### 13.2 Guard rails (transactional)
+
+Each calibration run is a single SQL transaction. Three rails are enforced per bridge:
+
+- `p97_s IS NULL` triggers ROLLBACK.
+- `n_samples < 1000` triggers ROLLBACK.
+- `days_span < 25` triggers ROLLBACK.
+
+Any single bridge failing any single rail aborts the whole transaction. Bridges in the same calibration cohort always share an observation window of comparable size and span. The constraint protects the panel from a partial commit where some bridges would be calibrated on a recent window and others on a stale one.
+
+### 13.3 Calibration cycle
+
+A bridge enters `calibrated:false / status:"UNCALIBRATED"` the moment it is exposed in the panel. It transitions to `calibrated:true / status:"OK"` on the first successful run of the calibration script after 30 days of clean samples have accumulated. After that, recalibration is event-driven (e.g. a documented protocol upgrade that shifts the underlying distribution) rather than periodic. Past entries remain immutable in `calibration_log.md`.
+
+Native bridges Arbitrum, Base and Optimism reached the calibrated state on 2026-04-22 (`calibration_log.md` `#027`). CCIP lanes and CCTP routes started accumulating samples on 2026-04-20 12:25 UTC. Earliest CCIP/CCTP calibration is 2026-05-20.
+
+### 13.4 Limitations
+
+The P97/30d threshold is a statistical positioning, not an event-based one. It does not by itself prove that a value above the threshold corresponds to a real congestion or to an RMN curse incident. Event-based validation (cross-checking calibrated thresholds against documented historical incidents, similarly to the L2 protocol in §9.3b) is a follow-up. Until event-based validation is published, bridge thresholds are stated as MEDIUM confidence statistical: the method is reproducible, the resulting state is timestamp-falsifiable against chain data, but the FPR/TPR against an incident ground truth is not yet established for bridges.
+
+---
+
+*Version 0.5 — Draft — 27 April 2026*
 *v0.3: architectural pivot L1 cause / L2 response, introduction of the μ layer (composition),*
 *section 7.4 causal grid, section 9.2b μ distinct from π, section 9.4 target (π,μ,σ) classifier*
 *v0.4: integration of the bridge as transmission layer — causal framework L1→Bridge→L2,*
 *section 9.5 operational BS* (Phase 2) + ω inter-layer flow (Phase 3, prospective),*
 *causal grid extended with Bridge column, section 10 planned phases 2+3*
+*v0.5: section 13 added (uniform P97/30d bridge calibration), native bridges calibrated*
+*2026-04-22 (cf. `calibration_log.md` `#027`), L2 panel GRANT fix 2026-04-27 (cf. `#028`),*
+*footer date harmonized with frontmatter*
 *Effective publication after minimum backtest validation on 2 chains*

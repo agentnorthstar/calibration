@@ -1049,5 +1049,45 @@ Before this entry, all three native bridges were exposed in the panel API as `ca
 
 ---
 
+## Entry #028 (2026-04-27): L2 panel entries restored, GRANT SELECT on `ans_l2_adapter_signals` for PostgREST
+
+**Type:** Production fix (operational, no calibration parameter change)
+**Surface:** `/v1/attestation/panel`, `panel.l2[]` array
+**Trigger:** Sanity check of the live panel during a session resumption after 5 quiet days. The 3 L2 entries (Arbitrum, Base, Optimism) were observed returning `regime: null` and `status: "UNAVAILABLE"` since 2026-04-20 12:25 UTC, the moment the panel-based Edge Function went live (P0 J1).
+
+---
+
+**Symptom**
+
+For 7 consecutive days, every call to `/v1/attestation/panel` returned the 3 L2 entries with `regime: null` and `status: "UNAVAILABLE"`, propagating a permanent `oracle_status: "DEGRADED"`. L1 Ethereum, native bridges and CCIP/CCTP lanes were unaffected. No error appeared in Edge Function logs.
+
+**Root cause**
+
+The Edge Function reads L2 state via the SQL view `v_l2_states`, which is created with `security_invoker=true`. Its CTE `latest_sigma` reads the underlying table `ans_l2_adapter_signals`. Under PostgREST the request runs as `service_role`. `service_role` bypasses RLS but still requires explicit table-level `GRANT SELECT`. That GRANT was never applied to `ans_l2_adapter_signals`, so the view resolved through `service_role` returned no row. `maybeSingle()` produced `error || !data` and the Edge Function fell back to its `UNAVAILABLE` skeleton without surfacing the failure.
+
+This is a recurrence of the same GRANT pitfall first hit and patched on 2026-04-22 for the CCIP and CCTP signal tables. The original patch was not extrapolated to pre-existing L2 tables, leaving a latent bug that surfaced 5 days later.
+
+**Fix**
+
+```sql
+GRANT SELECT ON public.ans_l2_adapter_signals TO service_role;
+NOTIFY pgrst, 'reload schema';
+```
+
+No Edge Function redeploy required. PostgREST cache reload picked up the new privilege within seconds.
+
+**Verification**
+
+After fix, a fresh call to `/v1/attestation/panel`:
+
+- The 3 L2 entries serve `regime: "S1D1"` with `structural` and `execution_profile` populated.
+- `oracle_status` is no longer permanently `DEGRADED`. Residual `DEGRADED` reflects real infra state at fix time (1 native bridge legitimately in BS2, 1 L2 entry transiently STALE), not a silent failure.
+
+**Status:** ✅ Deployed 2026-04-27.
+**Impact estimate:** Any client filtering on `panel.l2[].status == "OK"` was in `defer()` permanently from 2026-04-20 12:25 UTC to the 2026-04-27 fix time. To be communicated to early integrators if any incident report surfaces.
+**Follow-up:** Internal audit pass over every PostgREST-exposed view in the project, to detect any remaining occurrence of the same GRANT pattern.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries — additions at end of file only.*
