@@ -1008,5 +1008,46 @@ Q3 2026 — archive node replay execution + TPR/FPR sweep + publication of a ded
 
 ---
 
+## Entry #027 (2026-04-22): Native bridge thresholds P97/30d calibration (Arbitrum, Base, Optimism)
+
+**Type:** Statistical calibration (first time native bridges enter `calibrated:true`)
+**Bridges:** `arbitrum-ethereum/native`, `base-ethereum/native`, `optimism-ethereum/native`
+**Trigger:** 30 days of clean `last_batch_age_seconds` collection in `ans_bridge_signals` since the bridge collector deployment of 2026-03-22 (cf. `#015`). The P97/30d statistical window is reached on 2026-04-22.
+
+---
+
+**Method**
+
+The native bridge signal `last_batch_age_seconds` measures the time since the last L2 batch was confirmed on Ethereum L1 (SequencerInbox for Arbitrum, BatchInbox for Base and Optimism). For each bridge, the calibrated threshold `threshold_bs1_s` is set at the 97th percentile of the 30-day distribution of that signal. Above the threshold the bridge is reported as `BS2` (degraded posting cadence). At or below it `BS1` (nominal).
+
+The same statistical method (P97 over a continuous 30-day window) is applied to all three native bridges. Differences between final thresholds reflect real per-bridge dynamics, not method differences.
+
+**Guard rails (transactional, baked into `calibrate_native_p97_30d.sql`)**
+
+- `p97_s IS NULL` for any chain → ROLLBACK
+- `n_samples < 1000` for any chain → ROLLBACK
+- `days_span < 25` for any chain → ROLLBACK
+
+If any single chain fails any single rail, none of the three is committed. The three thresholds always share the same observation window.
+
+**Calibrated thresholds**
+
+| Bridge | `threshold_bs1_s` | n samples | days span |
+|--------|-------------------|-----------|-----------|
+| `arbitrum-ethereum/native` | **180.00 s** | 4,126 | 30.00 |
+| `base-ethereum/native`     | **60.00 s**  | 4,126 | 30.00 |
+| `optimism-ethereum/native` | **396.00 s** | 4,125 | 29.99 |
+
+**State transition**
+
+Before this entry, all three native bridges were exposed in the panel API as `calibrated:false / status:"UNCALIBRATED" / state:null`. After commit, each bridge serves `state ∈ {"BS1", "BS2"}` based on `last_batch_age_seconds vs threshold_bs1_s`. The Edge Function reads `bridge_thresholds` on every request, no redeploy was required.
+
+**Status:** ✅ Deployed 2026-04-22 09:29:21 UTC, single transactional UPDATE on `bridge_thresholds`.
+**Confidence:** MEDIUM statistical (P97/30d, no event-based validation yet).
+**Next step:** Same method applied to CCIP lanes and CCTP routes once each accumulates 30 days of clean signals (earliest 2026-05-20).
+**Limitation:** No event-based ground truth for native bridges yet. Detection of historical incidents (e.g., L2 sequencer outages with delayed batch posting) is a follow-up, paralleling the L2 forensic protocol introduced in `methodology.md §9.3b`.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries — additions at end of file only.*
