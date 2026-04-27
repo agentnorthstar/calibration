@@ -56,7 +56,7 @@ Public accountability document: every limitation we know about (statistical, met
 | `methodology.md` | 🟡 draft | 2026-04-19 | Complete method — pipeline, signals, calibration, M1 (§10.5 bootstrap 95% CI + P99 variant) · §9.3b L2 forensic event detection protocol (batch_gap on `ans_l2_adapter_signals`, archive node replay Q3 2026) |
 | `backtest_ethereum.md` | ✅ validated | 2026-04-19 | ETH backtest 2020–2024 — TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.23% IC95% [1.11% ; 1.36%] · §6 Temporal CV: TPR_test=100% (2/2), FPR_test=0.65% with published D2 params · §9 α_fast sensitivity sweep (knee confirmed at α=2/11) |
 | `backtest_solana.md` | ✅ validated | 2026-03-16 | SOL τ backtest 2021–2024 — TPR_τ=100% (4/4) IC95% [39.76% ; 100%], FPR_τ=1.77% IC95% [1.70% ; 1.84%] · π pending |
-| `calibration_log.md` | 🟡 active | 2026-04-19 | Incident log + decisions — 26 entries (incl. #026 L2 Phase D revised to archive node replay) |
+| `calibration_log.md` | 🟡 active | 2026-04-22 | Incident log + decisions — 27 entries (incl. #027 native bridge thresholds P97/30d, ARB=180s · BASE=60s · OP=396s) |
 | `limitations_and_plans.md` | 🟡 living | 2026-04-19 | Known limitations + dated roadmap of corrections — public accountability |
 | `protocol_watch.md` | 🟡 active | 2026-04-11 | EIP and upgrade tracking — 5 entries |
 | `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024 — L2:S1D2 + Bridge:BS2 invisible to fee monitors |
