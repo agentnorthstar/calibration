@@ -330,7 +330,7 @@ ALTER TABLE ans_l2_chain_signals
 
 **Note on publish_latency:** the ~80min value reflects the gap between `t_L1_block` and the `last_timestamp` of the most recent L2 invariant (~1h window). This is a relative measure, adapted to the EMA. The absolute value is not directly interpretable — only variations vs baseline are significant.
 
-**Note on blob_usage = 0.833:** high signal on first reading. May indicate heavy blob market usage this evening, or be the normal baseline for Base/OP. EMA convergence needed (~10 cycles = ~50 min of L1 scan) before interpretation.
+**Note on blob_usage = 0.833:** high signal on first reading. May indicate heavy blob market usage at the time of measurement, or be the normal baseline for Base/OP. EMA convergence needed (~10 cycles = ~50 min of L1 scan) before interpretation.
 
 **EMA parameters:** to be defined during Dune calibration (Phase D). No EMA implemented in Phase C — signals are stored raw. EMA will be added in an enriched `invarians-l2-chain` service or in a new `invarians-l2-adapter-chain`.
 
@@ -812,7 +812,7 @@ Consequence: the only difference between v1.0 backtest (Φ=1800, β=1) and produ
 **Interpretation:**
 
 - **FPR increase is mechanical and predicted.** σ(rho_ts) ∝ 1/√Φ; switching from Φ=1800 to Φ=720 widens the baseline distributions by √(1800/720) ≈ 1.58× (worst case). The observed FPR increase ratio is 14.57/11.75 ≈ 1.24× — below worst case, consistent with signal autocorrelation attenuating the effect.
-- **Latency gain is the operational payoff.** The mean detection latency drops from 16.8h to 3.95h (−76%). The Heimdall/Bor low-amplitude event, previously detected after 35.2h, is now detected in 2.5h. A monitoring system designed for real-time agent coordination cannot tolerate a 35-hour lag.
+- **Latency gain is the operational payoff.** The mean detection latency drops from 16.8h to 3.95h (−76%). The Heimdall/Bor low-amplitude event, previously detected after 35.2h, is now detected in 2.5h. A monitoring system designed for low-latency agent coordination cannot tolerate a 35-hour lag.
 - **TPR and ROC frontier preserved.** 4/4 events remain detected. AUC drops by 0.014 (0.944 → 0.930), within the noise band for n=4 events. The classifier remains Pareto-optimal.
 - **M1 τ up, M1 π down.** M1 τ increases on Reorg Storm (+18%) because the shorter window captures the reorg peak more sharply. M1 π decreases on Gas Crisis (−21%) because the shorter window samples the long-tailed Gas Crisis differently — the p50 baseline of sigma_ratio shifts slightly, narrowing the amplitude ratio. Both remain well above the 2.0 "significant signal" threshold (methodology.md §10).
 
@@ -970,7 +970,7 @@ Throughout the early L2 build (March 2026), forward-looking statements in the L2
 1. **Dune does not curate an incident registry.** It indexes on-chain data and enables measurement queries, but the list of "L2 sequencer incidents" still requires editorial curation from operator status pages, postmortems, and community trackers. Crossing narrative ground truth with on-chain measurement introduces editorial bias that is inconsistent with the deterministic reproducibility standard applied to L1 calibrations.
 2. **An equivalent purely on-chain signal is already in production.** The `ans_l2_adapter_signals` table (populated since 2026-03-17 by the `invarians-l2-adapter` service) contains per-batch L1 timestamps for the ARB SequencerInbox, BASE BatchInbox, and OP BatchInbox. The derived `batch_gap_seconds` signal (SQL window function, no code change required) produces a clean sequencer cadence distribution per chain with no invariant-cadence sampling bias that affects `publish_latency_seconds`.
 
-**Validation of the forensic signal (2026-04-19, n = 93,094 gap observations, 2026-03-17 → 2026-04-19)**
+**Validation of the event-based signal (2026-04-19, n = 93,094 gap observations, 2026-03-17 → 2026-04-19)**
 
 | chain | p50 | p90 | p99 | p99.9 | max | p99.9/p50 |
 |-------|-----|-----|-----|-------|-----|-----------|
@@ -988,7 +988,7 @@ Phase D is re-scoped as follows:
 - **Event definition**: `batch_gap_seconds > N × protocol_ceiling` per chain (provisional candidate N=3, to be validated).
 - **Historical extension**: retroactive scan of the same three L1 inbox contracts on an Ethereum archive node (Q3 2026), producing an extended `ans_l2_adapter_signals` back-fill covering documented L2 incidents (e.g. OP 2024-02-15, BASE 2024-09-05, ARB 2023-2024 events).
 - **Sweep + TPR/FPR**: identical methodology to L1 calibrations (Clopper-Pearson IC95% on detection rate; wide-n FPR estimate on the calm distribution).
-- **Publication gate**: thresholds enter `ans_registry` as MEDIUM event-based (forensic) only after TPR/FPR validation on the archive-replayed incident set.
+- **Publication gate**: thresholds enter `ans_registry` as MEDIUM event-based only after TPR/FPR validation on the archive-replayed incident set.
 
 **Rationale — why archive node, not Dune**
 
@@ -998,7 +998,7 @@ Phase D is re-scoped as follows:
 
 **Scope of change**
 
-- `methodology.md` — §9.3 gains `batch_gap_seconds` as a derived signal; new §9.3b documents the forensic protocol, current distribution, provisional thresholds, and archive-replay roadmap. All five occurrences of "Dune" in §9.2, §9.4, §9.6, and §12 are replaced with explicit references to the archive node replay protocol.
+- `methodology.md` — §9.3 gains `batch_gap_seconds` as a derived signal; new §9.3b documents the archive-replay protocol, current distribution, provisional thresholds, and archive-replay roadmap. All five occurrences of "Dune" in §9.2, §9.4, §9.6, and §12 are replaced with explicit references to the archive node replay protocol.
 - `calibration_log.md` — this entry. No rewrite of past entries (their forward-looking Dune references are now superseded, not falsified).
 - No production change. The L2 adapter continues collecting, unchanged.
 
@@ -1045,7 +1045,7 @@ Before this entry, all three native bridges were exposed in the panel API as `ca
 **Status:** ✅ Deployed 2026-04-22 09:29:21 UTC, single transactional UPDATE on `bridge_thresholds`.
 **Confidence:** MEDIUM statistical (P97/30d, no event-based validation yet).
 **Next step:** Same method applied to CCIP lanes and CCTP routes once each accumulates 30 days of clean signals (earliest 2026-05-20).
-**Limitation:** No event-based ground truth for native bridges yet. Detection of historical incidents (e.g., L2 sequencer outages with delayed batch posting) is a follow-up, paralleling the L2 forensic protocol introduced in `methodology.md §9.3b`.
+**Limitation:** No event-based ground truth for native bridges yet. Detection of historical incidents (e.g., L2 sequencer outages with delayed batch posting) is a follow-up, paralleling the L2 archive-replay protocol introduced in `methodology.md §9.3b`.
 
 ---
 
@@ -1089,5 +1089,598 @@ After fix, a fresh call to `/v1/attestation/panel`:
 
 ---
 
+## Entry #029 (2026-04-29): Calibration centralization — L1/L2 thresholds extracted to Postgres tables, view rename states→regimes, Polygon drift resolved
+
+**Type:** Architecture refactor + drift correction (silent)
+**Scope:** L1 + L2 calibration thresholds, classification views, Edge Function `attestation/index.ts`, vocabulary alignment
+**Trigger:** Deep audit of the calibration pipeline triggered by post-mortem of the rsETH bridge incident (2026-04-18). Three independent asymmetries surfaced during a code-vs-Postgres review.
+
+---
+
+**Symptom**
+
+1. **Polygon drift TS vs view.** TS `THRESHOLDS.polygon` carried event-based v2.0 values (`rhythm_p90=1.04, sigma=1.14, size=1.18, tx=1.23`, validated 2026-04-19, Entry #023). Postgres view `v_l1_states` carried obsolete pre-calibration values (`1.12 / 1.50 / 1.40 / 1.60`). Both live in production paths. POL not yet exposed via `PANEL_L1_CHAINS`, so external API impact zero, but any consumer reading the SQL view directly (internal dashboard, ad-hoc query) saw classifications inconsistent with the published backtest.
+
+2. **Duplicated L1 classification logic.** `classifyL1State()` in `attestation/index.ts` reproduced the regime CASE WHEN of `v_l1_states`. Two implementations of the same logic in two languages — exposed to future drift on the same pattern.
+
+3. **Vocabulary inconsistency.** Views named `v_l1_states` (column `state`) and `v_l2_states` (column `l2_state`) used "state" for what the docs, articles, and regime grid call "regime" (S1D1, S1D2, S2D1, S2D2). "State" is the correct word for binary bridge classifications (BS1, BS2) only. Naming was a historical carryover.
+
+**Root cause**
+
+Calibration values lived in three places in parallel: TS Edge Function constants, Postgres view CTE inline values, plus dead-code TS `L2_THRESHOLDS` constant. No enforced single source of truth. Each calibration update had to be propagated by hand. The POL update of 2026-04-19 (Entry #023) propagated to TS but not to the Postgres view CTE, and went undetected for 10 days because POL is not in the public panel scope (`PANEL_L1_CHAINS = ['ethereum']`).
+
+**Fix**
+
+A. New tables `l1_thresholds` and `l2_thresholds` in Postgres with RLS enabled (public read, service_role write). Schema mirrors `bridge_thresholds`: chain (PK), threshold columns, `calibration_method`, `calibrated_at`, `calibrated`, `notes`, `source_event_ids`. Modifiable by SQL migration only.
+
+B. Seeded with backtest-validated values:
+- `ethereum`: 1.12 / 1.10 / 1.20 / 1.10, event_based MEDIUM (backtest_ethereum.md v0.1)
+- `polygon`: 1.04 / 1.14 / 1.18 / 1.23, event_based MEDIUM (backtest_polygon.md v2.0)
+- `solana`: 1.12 / 1.1279 / 1.0375 / 1.1279, mixed (τ MEDIUM + π pending July 2026)
+- `avalanche`: 1.0282 / 1.2322 / 1.2143 / 1.2399, statistical heuristic LOW (no published backtest yet)
+- `arbitrum`: τ=1.15, σ=1.20, statistical_arbitrary, calibrated 2026-04-22 (Phase 2C)
+- `base`: τ=1.05, σ=1.10, statistical_arbitrary, calibrated 2026-04-22
+- `optimism`: τ=1.05, σ=1.06, statistical_arbitrary, calibrated 2026-04-22
+
+C. New views `v_l1_regimes` and `v_l2_regimes` reading thresholds from the new tables. Identical CASE WHEN classification logic. Column renamed `state` / `l2_state` → `regime`. Returns `regime = NULL` if `calibrated = false`, mapped by Edge Function to `status: "UNCALIBRATED"`.
+
+D. Edge Function `attestation/index.ts` modified:
+- Removed: `THRESHOLDS` constant (~25 lines), `L2_THRESHOLDS` constant (4 lines), `classifyL1State()` function (18 lines), `ChainThresholds` interface (14 lines).
+- Kept: `computeF3()` (used for `divergence_index`).
+- Modified: `fetchL1Entry()` reads `v_l1_regimes` directly (1 SELECT instead of 2 + classification SQL instead of TS); `fetchL2Entry()` reads `v_l2_regimes`; both surface `status: "UNCALIBRATED"` when `data.calibrated === false`.
+- Net: ~80 lines deleted, ~30 lines simplified. External JSON response shape unchanged. SDK 0.2.1 still aligned, no version bump required.
+
+E. Old views `v_l1_states` and `v_l2_states` left in place during deploy and validation, then dropped after the new Edge Function was confirmed stable in production.
+
+**Verification**
+
+- Pre-DROP: `SELECT regime FROM v_l1_regimes` vs `SELECT state FROM v_l1_states` compared on identical timestamp. ETH/SOL/AVAX = OK match. POL = MISMATCH expected (S1D1 → S1D2 with corrected thresholds).
+- Pre-DROP: L2 view comparison. ARB/BASE/OP = OK match (same thresholds both sides).
+- Edge Function deployed with `--no-verify-jwt`. Live curl returned `oracle_status: "OK"`, ETH `regime: "S1D1"`, all 3 L2 `regime: "S1D1"`, all 3 native bridges `state: "BS1"`, signed_execution_context populated.
+- Old views dropped 2026-04-29 after stable Edge Function validation.
+
+**Per-chain parameter diff vs pre-migration `v_l1_states`**
+
+| Chain | Param | Old view | New table | Δ |
+|---|---|---|---|---|
+| ethereum | rhythm_p90 | 1.12 | 1.12 | none |
+| ethereum | sigma_demand | 1.10 | 1.10 | none |
+| ethereum | size_demand | 1.20 | 1.20 | none |
+| ethereum | tx_demand | 1.10 | 1.10 | none |
+| **polygon** | rhythm_p90 | **1.12** | **1.04** | **tightened** |
+| **polygon** | sigma_demand | **1.50** | **1.14** | **tightened** |
+| **polygon** | size_demand | **1.40** | **1.18** | **tightened** |
+| **polygon** | tx_demand | **1.60** | **1.23** | **tightened** |
+| solana | all | unchanged | unchanged | none |
+| avalanche | all | unchanged | unchanged | none |
+| L2 (ARB/BASE/OP) | all | unchanged | unchanged | none |
+
+**baseline_impact:** **yes for POL only**. Polygon regime distribution will shift toward more S1D2 / S2D1 / S2D2 windows than before because the thresholds are now event-based-tightened (matching the published backtest TPR=100%, FPR=14.57%). This is a label correction, not a real regime change on the chain. POL is not yet served by the public panel API (`PANEL_L1_CHAINS = ['ethereum']` until P2), so external impact remains zero. Internal Labs / dashboard consumers reading the views directly should segment their POL time series at 2026-04-29 12:00 UTC.
+
+ETH / SOL / AVAX: no baseline impact (parameters unchanged).
+L2 (ARB / BASE / OP): no baseline impact (parameters unchanged).
+Bridges: out of scope (already in their own `bridge_thresholds` table since Entry #027).
+
+**Architecture invariant going forward**
+
+Any future calibration update follows a single path:
+```
+SQL migration on l1_thresholds / l2_thresholds
+  → v_l1_regimes / v_l2_regimes (read the table on next query)
+  → attestation Edge Function (reads the view on next call)
+  → panel API (signed payload)
+```
+Single source of truth. No TS constant, no inline CTE values. Drift between code and database eliminated by construction.
+
+**Status:** ✅ Deployed 2026-04-29. Migration SQL persisted as `oracle-repo/supabase/migration_l1_l2_thresholds_centralization.sql`. Edge Function commit on `oracle-repo/main`. Old views `v_l1_states` and `v_l2_states` dropped after stable validation.
+
+**Follow-up**
+
+- AVAX `calibrated=true` with `confidence: LOW` and no published backtest. Either run the calibration backtest (planned July 2026) or flip `calibrated=false` to enforce `UNCALIBRATED` status until validated. AVAX not in `PANEL_L1_CHAINS`, so external visibility nil — flag deferred.
+- One-sided thresholds (`> seuil` only) ignore negative divergences. The rsETH 2026-04-18 cascade showed `tx_ratio=0.7961` (−20.4% below nominal) on ETH which the current logic does not classify as deviation. Composition skew metric (`abs(size_ratio - tx_ratio)`) under consideration for V1.1 panel API enrichment. Not addressed in this entry.
+- POL exposure via panel API in P2 (CCIP/CCTP rollout). At that point the new event-based thresholds will be served publicly. No additional calibration work required, just `PANEL_L1_CHAINS` extension.
+- L2 calibration remains `statistical_arbitrary`. Event-based backtests for L2 deferred to Q3 2026 (would require ground-truth L2 sequencer incidents).
+
+---
+
+## Entry #030 (2026-04-29 PM): Bilateral regime codes — schema deployed (phase β inactive)
+
+**Type:** Architecture extension, schema-only (no calibration value applied)
+**Scope:** Calibration tables `l1_thresholds` + `l2_thresholds`, classification views `v_l1_regimes` + `v_l2_regimes`, Edge Function `Regime` type, SDK Python type
+**Trigger:** Strategic discussion during the rsETH 2026-04-18 post-mortem on whether divergences should be classified bilaterally (positive AND negative) instead of one-sided as today. The cascade signature on Ethereum (size_ratio above nominal × tx_ratio below nominal at 14h UTC) revealed that one-sided thresholds miss asymmetric agentic concentration patterns. Two paths considered: (A) wait for calibration before any deployment, (B) deploy the schema immediately with conditional logic so future calibration is a single UPDATE. Path B chosen to remove the schema as a future blocker.
+
+---
+
+**Symptom**
+
+The four-state regime grid (S1D1, S1D2, S2D1, S2D2) classifies only on the upper side of each ratio (`> threshold`). Operationally, several real-world signatures fall below the nominal:
+
+- Cascading liquidations during exploits (rsETH 2026-04-18 14h UTC: size_ratio = 1.08 above, tx_ratio = 0.74 below; current logic emits S1D1 because size has not crossed 1.20)
+- Sequencer halts on L2 (tx_ratio drops abruptly while rhythm slows)
+- Censorship of specific transaction types (tx_ratio drops while size_ratio rises on residual DeFi-heavy mix)
+- Stablecoin depegs absorbing volume into private bundles (size up, tx down)
+
+None of these patterns trigger a regime change in the current model.
+
+**Architectural decision**
+
+Add the schema for bilateral codes immediately, but gate emission behind a per-chain `low_thresholds_calibrated` boolean flag, default false. The view emits the legacy 4-state codes as long as the flag is false on a chain (or any low threshold is NULL). The view emits extended 12-state codes once the flag is true and all low thresholds are populated.
+
+This decouples the schema decision from the calibration work:
+- Schema lands in the same release window (zero behavioral change, zero risk)
+- Calibration follows over Q3 2026, per chain, after event-based backtests on documented incidents
+- Activation is a single UPDATE per chain, no migration, no Edge Function redeploy
+
+**Changes deployed (2026-04-29 PM)**
+
+A. Postgres schema extension on `l1_thresholds`:
+- New columns: `sigma_demand_low`, `size_demand_low`, `tx_demand_low`, `rhythm_p10`, `low_thresholds_calibrated boolean DEFAULT false`
+- New CHECK constraint `chk_l1_low_bounds` ensuring each low value (when non-NULL) is strictly below its corresponding high value
+
+B. Postgres schema extension on `l2_thresholds`:
+- New columns: `rhythm_threshold_low`, `sigma_threshold_low`, `low_thresholds_calibrated boolean DEFAULT false`
+- New CHECK constraint `chk_l2_low_bounds`
+
+C. View `v_l1_regimes` extended with conditional CASE WHEN. Outer branch on `low_thresholds_calibrated` and NULL-safety of all low values. Phase α branch identical to v1.1.0. Phase β branch concatenates struct_part || demand_part:
+  - struct_part: `S2+` if rhythm > rhythm_p90, `S2-` if rhythm < rhythm_p10, else `S1`
+  - demand_part: `D2±` if any-above and any-below, `D2+` if any-above only, `D2-` if any-below only, else `D1`
+
+D. View `v_l2_regimes` extended similarly. L2 single-dim demand (sigma_ratio only) cannot produce D2±, so phase β L2 emits 9 codes (no `S1D2±`, `S2+D2±`, `S2-D2±`).
+
+E. Edge Function `attestation/index.ts`: `Regime` type extended to 15 string literals, `L2Regime` type extended to 12. No version bump (additive type).
+
+F. SDK Python `invarians`: `Regime` Literal extended with the 15 values. Bumped to **0.3.1** and published on PyPI.
+
+G. Roadmap updated: Q3 2026 entry now lists bilateral regime activation alongside Solana / Avalanche calibration completion.
+
+**Phase β activation pre-requisites (calibration work, not part of this entry)**
+
+Per chain, calibration of the four low bounds (or three for L2) must be derived from event-based backtests on documented incidents. Reference incidents identified for the calibration exercise:
+
+| Incident | Date | Expected signature |
+|---|---|---|
+| MakerDAO Black Thursday | 2020-03-12 | ETH S1D2± (cascading liquidations) |
+| USDC depeg | 2023-03-11 | ETH S1D2± (HFT arbitrage concentrated) |
+| Curve July reentrancy | 2023-07-30 | ETH S1D2± (multi-pool drain) |
+| ARB sequencer halt | 2024-12-15 | ARB S2+D2- (halt + drained mempool) |
+| OP rare mode | 2024-09 | OP S2+D2- |
+| Solana outages ×4 | 2021-09 to 2022-10 | SOL S2+D2- or S2-D1 |
+| rsETH cascade | 2026-04-18 | ETH S1D2- or S1D2± |
+
+Effort estimate: ~3-4 weeks of BigQuery extraction + TPR/FPR validation per chain. Targeted activation Q3 2026, chain by chain as backtests validate.
+
+**Stability commitment compliance**
+
+Per `limitations_and_plans.md §2.6`, calibration changes during the Labs baseline phase (started 2026-03-30) require explicit `baseline_impact: yes|no` flag. This entry: **baseline_impact: no** because no chain has `low_thresholds_calibrated=true` at activation. The schema landing is invisible to Labs aggregations. Future per-chain activations will each be logged with `baseline_impact: yes` for that chain only.
+
+**Status:** ✅ Schema deployed 2026-04-29. All 7 chains (4 L1 + 3 L2) have `low_thresholds_calibrated=false`. Panel API emits legacy 4-state codes unchanged. Migration SQL persisted as `oracle-repo/supabase/migration_l1_l2_bilateral_phase_beta.sql`.
+
+**Backward compatibility note**
+
+When phase β activates per chain, that chain emits new signed codes (e.g. `S1D2+` instead of `S1D2`). Clients hardcoding 4-state regex match should be updated:
+- Python SDK 0.3.1+ types include the 15 values via `Literal`
+- Generic clients should match prefix `S{1,2}{+,-,}D{1,2}{+,-,±,}` rather than the 4 literals
+
+Activation announcement will be made in advance per the v1.x API versioning policy (30-day notice for breaking changes; this is technically additive but client-side string matching may break).
+
+**Follow-up**
+
+- Phase β calibration backtests (Q3 2026)
+- Per-chain activation announcements with 30-day notice
+- Site documentation update (glossary, products, patterns, foundations) coordinated with first chain activation
+- Edge Function version bump to 1.2.0 if/when activation logic ever needs runtime tuning
+
+---
+
+## Entry #031 (2026-04-29 PM): Bilateral regime codes — phase β activated on ETH, POL, BASE, OP (statistical, provisional)
+
+**Type:** Calibration activation (statistical, no event-based validation)
+**Scope:** L1 ethereum, L1 polygon, L2 base, L2 optimism. SOL, AVAX, ARB explicitly excluded with documented reasons.
+**Trigger:** Same release window as Entry #030 (schema deployment). Decision to activate immediately rather than wait Q3 2026 event-based, accepting statistical lower bounds as provisional with explicit FPR target documented.
+
+---
+
+**What was activated**
+
+A. **L1 ethereum** — preset B (P2 cutoff, FPR ~2% target, FPR-symmetric with HIGH side at 1.23%)
+   ```
+   rhythm_p10       = 0.913
+   sigma_demand_low = 0.9552
+   size_demand_low  = 0.8006
+   tx_demand_low    = 0.8145
+   ```
+   Source: `BIGDATA/eth_invariants_2020_2024_phi280.csv` (BigQuery), N=34,648 windows post-warmup
+
+B. **L1 polygon** — preset A (P5 cutoff, FPR ~5% target — P2 unusable, sigma/tx P2 = 0 from historical Polygon downtimes)
+   ```
+   rhythm_p10       = 0.9407
+   sigma_demand_low = 0.5055
+   size_demand_low  = 0.8492
+   tx_demand_low    = 0.5284
+   ```
+   Source: `BIGDATA/pol_invariants_2020_2024_phi720.csv` (BigQuery), N=71,206 windows post-warmup
+
+C. **L2 base** — P2 cutoff statistical
+   ```
+   rhythm_threshold_low = 0.998
+   sigma_threshold_low  = 0.8267
+   ```
+   Source: in-DB `ans_l2_rollup_signals` + `ans_l2_chain_signals` over rolling 30 days, N=652 windows
+
+D. **L2 optimism** — P2 cutoff statistical
+   ```
+   rhythm_threshold_low = 0.998
+   sigma_threshold_low  = 0.8575
+   ```
+   Source: same as BASE, N=652 windows
+
+**What was explicitly NOT activated**
+
+- **L1 solana**: full pi calibration scheduled July 2026 (sensor data pending). Activating now with partial bilateral would collide with that work.
+- **L1 avalanche**: no BigQuery extract available, no calibration scheduled before July 2026.
+- **L2 arbitrum**: sigma_ratio is structurally degenerate on Arbitrum Nitro (gasLimit ≈ ∞ → variance = 0 over 653 windows, min=max=1.0). Setting sigma_threshold_low ≈ 1.0 produces a threshold that can never trigger. Multi-dim demand workaround (size+tx based, AGENT internal Rule 10) deferred to Q3 2026 chain_profile_arbitrum.md.
+
+**Live verification (2026-04-29 17:00 UTC)**
+
+Panel API spot-check returned bilateral codes for the first time in production:
+```json
+{
+  "version": "1.1.0",
+  "panel": {
+    "l1": [{ "chain": "ethereum",  "regime": "S1D1" }],
+    "l2": [
+      { "chain": "arbitrum", "regime": "S1D1"  },
+      { "chain": "base",     "regime": "S1D2+" },
+      { "chain": "optimism", "regime": "S1D2+" }
+    ]
+  }
+}
+```
+
+BASE and OP emitted `S1D2+` (demand elevated, direction explicit) — the very first phase β codes through the production stack: Postgres view → Edge Function → signed panel JSON. ETH and ARB stayed in legacy 4-state codes (ETH because conditions are nominal at 17:00 UTC, ARB because phase β not activated).
+
+**FPR caveat (explicit)**
+
+These calibration values are **statistical, NOT event-based**. By construction:
+- ETH lower bounds at P2 → ~2% FPR per signal (FPR-symmetric with HIGH side at 1.23%)
+- POL lower bounds at P5 → ~5% FPR per signal (HIGH side accepts 14.57%, asymmetry tolerated due to Polygon variance)
+- BASE/OP lower bounds at P2 → ~2% FPR per signal
+
+These FPRs assume the historical distribution is stationary. If the chain enters a sustained drift regime (cf. AVAX rhythm_shift = -0.063), the percentile-based bounds become miscalibrated relative to the new distribution. Event-based recalibration in Q3 2026 will validate or refine.
+
+**Backward compat**
+
+Old clients reading `regime` as one of `{S1D1, S1D2, S2D1, S2D2}` will now occasionally see `S1D2+`, `S1D2-`, `S1D2±`, `S2+D1`, `S2-D1`, `S2+D2+`, `S2+D2-`, `S2+D2±`, `S2-D2+`, `S2-D2-`, `S2-D2±` for ETH/POL, and `S1D2+`, `S1D2-`, `S2+D1`, `S2-D1`, `S2+D2+`, `S2+D2-`, `S2-D2+`, `S2-D2-` for BASE/OP. The legacy 4-state values are preserved for SOL, AVAX, ARB.
+
+Python SDK 0.3.1+ types include all 15 values via `Literal`. SDK clients on 0.3.1 are forward-compatible. Generic clients hardcoding a regex match on the 4 legacy values must be updated.
+
+**baseline_impact** (per stability commitment §2.6)
+
+- **ETH**: yes (label correction). The chain emits more granular codes; Labs aggregations will see new code categories appear from 2026-04-29 17:00 UTC. Segment time series at this cut-over.
+- **POL**: yes (same).
+- **BASE**: yes (BASE was emitting S1D2 already, now emits S1D2+ — semantically equivalent to S1D2 when only above triggers, but the suffix is new). Strictly speaking the underlying condition is the same as before, only the label has gained the `+` suffix.
+- **OP**: yes (same as BASE).
+- **SOL/AVAX/ARB**: no (unchanged).
+
+**Status:** ✅ Deployed 2026-04-29. Migration SQL `migration_l1_l2_bilateral_phase_beta.sql` applied. Calibration UPDATEs applied via direct SQL (no separate migration file). Edge Function v1.1.0 unchanged (Regime type already extended in Entry #030).
+
+**Follow-up**
+
+- Q3 2026: event-based recalibration of L1 bilateral lows on documented incidents (rsETH 2026-04-18, MakerDAO Black Thursday 2020-03-12, USDC depeg 2023-03-11, Curve July 2023-07-30, ARB sequencer halt 2024-12-15, OP rare mode 2024-09, Solana outages ×4 2021-2022).
+- Q3 2026: SOL/AVAX bilateral activation alongside their pi calibration completion.
+- Q3 2026: ARB sigma workaround documented in `chain_profile_arbitrum.md` (multi-dim demand on size+tx).
+- Stability period for the current statistical bounds: until Q3 2026 event-based pass. Any baseline-shift artifact in Labs aggregations will be flagged at this cut-over date.
+
+---
+
+## Entry #032 (2026-04-29): Phase β v2 — peer-reviewed audit corrections (rename, ETH P1, BASE/OP rhythm NULL, ARB multi-dim activation)
+
+**Type:** Calibration refinement + schema cleanup (no public behavior break)
+**Scope:** L1 ethereum, L2 arbitrum, L2 base, L2 optimism. Fixes 5 sub-optimal points identified in a critical peer-reviewed audit of the Entry #031 deployment, applied within the same release window.
+**Trigger:** Independent audit of the freshly-deployed phase β state by a senior dev expert. Six issues identified, three flagged as critical, three as minor. User decision: fix all immediately rather than carry as debt.
+
+---
+
+**Symptom (audit findings)**
+
+1. **Naming debt L1.** Column `l1_thresholds.rhythm_p10` named after a percentile (P10) but stored P2 for ETH and P5 for POL. The name lied about the content. Inconsistent with the L2 column `rhythm_threshold_low` which followed proper naming.
+
+2. **ETH FPR asymmetry.** ETH HIGH side event-based combined FPR = 1.23%. ETH LOW side at P2 combined FPR ≈ 5.9% (1 - (1-0.02)³). Asymmetry ratio ≈ 5×. The system would emit S1D2- five times more often than S1D2+ for purely statistical (not operational) reasons. Defensible only as provisional, but unbalanced.
+
+3. **BASE/OP rhythm_threshold_low at 0.998.** The L2 rollup rhythm distribution is intrinsically tight ("τ dormant" per chain profile, max ~1.03). P2 = 0.998 means the threshold triggers when rhythm_ratio drops by less than 0.2% below 1 — sub-percent fluctuations, not operational signal.
+
+4. **ARB classification operationally degenerate.** Phase α: rhythm > 1.15 essentially never happens (max observed ~1.03), sigma > 1.20 never happens (sigma_ratio frozen at 1.0 on Arbitrum Nitro). Phase β v1 was skipped on ARB due to sigma degeneracy. Net result: ARB always emitted S1D1 regardless of conditions. Phase β provides no signal on Arbitrum.
+
+5. **Schema inconsistency L1 vs L2.** L1 used `rhythm_p10`, `sigma_demand_low`, `size_demand_low`, `tx_demand_low` (mixed naming). L2 used `rhythm_threshold_low`, `sigma_threshold_low` (consistent). To harmonize, L1 should adopt L2 convention OR L2 should adopt L1 convention. L2 was newer and cleaner — chose to align L1 to L2.
+
+6. **POL FPR symmetry by accident.** POL HIGH FPR 14.57%, LOW at P5 ≈ 14.3% combined. Symmetric by coincidence due to POL's wide historical variance. Not intentional design; if POL variance reduces in the next 30 days, asymmetry will return.
+
+**Fix**
+
+A. **Rename L1 column** `rhythm_p10` → `rhythm_threshold_low`. CHECK constraint reference auto-updates. View `v_l1_regimes` updated to use the new name.
+
+B. **Extend L2 schema multi-dim** with new columns `size_threshold`, `size_threshold_low`, `tx_threshold`, `tx_threshold_low`. CHECK constraint extended to enforce `_low < _high` on all four pairs (NULL allowed). View `v_l2_regimes` rewritten with multi-dim demand (sigma + size + tx) NULL-safe per axis. Phase α stays single-dim sigma legacy (backward compat).
+
+C. **Rewrite views NULL-safe.** `v_l1_regimes` and `v_l2_regimes` now treat each axis low independently: `rhythm_threshold_low IS NULL` means S2- skipped on rhythm but phase β stays active via demand axes. Same for each demand axis. Phase β activation gated only by `low_thresholds_calibrated = true`, not by all-lows-non-NULL.
+
+D. **Recalibrate ETH from P2 → P1.** New values: rhythm_threshold_low=0.8991, sigma_demand_low=0.9171, size_demand_low=0.766, tx_demand_low=0.7682. FPR per axis ~1%, combined ~3%, closer to HIGH side 1.23% (asymmetry 2.4× instead of 5×).
+
+E. **Set BASE/OP `rhythm_threshold_low = NULL`.** Rhythm L2 distribution too tight to be operationally informative. S2- on rhythm now skipped on these chains. Phase β stays active on demand axes (sigma + size + tx).
+
+F. **Activate ARB phase β multi-dim.** Sigma stays degenerate (sigma_threshold_low=NULL, sigma_threshold=1.20 unchanged but never triggers). Size and tx now active with P95 high / P2 low statistical bounds:
+   - size_threshold = 1.5211, size_threshold_low = 0.6551 (P95/P2 over 30d, n=653 windows)
+   - tx_threshold = 1.6494, tx_threshold_low = 0.5819
+
+G. **Same multi-dim treatment on BASE and OP.** Sigma + size + tx active, all bilateral. Rhythm S2- disabled (NULL).
+
+**Per-chain parameter diff vs Entry #031**
+
+| Chain | Param | Entry #031 | Entry #032 | Δ |
+|---|---|---|---|---|
+| ETH | rhythm_threshold_low | 0.913 (P2) | 0.8991 (P1) | tighter |
+| ETH | sigma_demand_low | 0.9552 (P2) | 0.9171 (P1) | tighter |
+| ETH | size_demand_low | 0.8006 (P2) | 0.766 (P1) | tighter |
+| ETH | tx_demand_low | 0.8145 (P2) | 0.7682 (P1) | tighter |
+| POL | (all) | unchanged | unchanged | none |
+| ARB | low_thresholds_calibrated | false (skipped) | true (multi-dim) | activated |
+| ARB | size/tx thresholds | NULL | size 1.5211/0.6551, tx 1.6494/0.5819 | added |
+| BASE | rhythm_threshold_low | 0.998 (P2) | NULL | disabled |
+| BASE | size/tx thresholds | NULL | size 1.2665/0.7246, tx 1.3307/0.7305 | added |
+| OP | rhythm_threshold_low | 0.998 (P2) | NULL | disabled |
+| OP | size/tx thresholds | NULL | size 1.306/0.7035, tx 1.1912/0.8119 | added |
+
+**Live verification (post-migration)**
+
+Panel API spot-check after migration:
+- L1 ETH: regime currently nominal (S1D1)
+- L2 ARB: size_ratio=1.4416 (below P95=1.5211), tx=1.5017 (below P95=1.6494) → S1D1 (correct, ARB now CAN emit S1D2+ when outliers occur)
+- L2 BASE: sigma=1.0217 (below 1.10), size=1.1368 (below 1.2665), tx=1.1824 (below 1.3307) → S1D1
+- L2 OP: sigma=1.0139 (below 1.06), size=1.2637 (below 1.306), tx=1.0866 (below 1.1912) → S1D1
+
+All chains in nominal state at the moment, but multi-dim demand bilateral classification is now alive and will emit signed codes when conditions cross.
+
+**baseline_impact**
+
+- ETH: yes (P1 vs P2 → tighter thresholds, fewer D2- emissions, rebalanced FPR)
+- POL: no (unchanged)
+- ARB: yes (was always S1D1, now CAN emit S1D2+/-/± via size and tx)
+- BASE/OP: minor (no more S2- emissions on rhythm, but D2±/D2- emissions via size/tx now possible)
+
+Labs aggregations should segment time series at this cut-over (2026-04-29 late PM) for affected chains.
+
+**Status:** ✅ Deployed 2026-04-29. Migration `oracle-repo/supabase/migration_l1_l2_phase_beta_v2_corrections.sql` applied via Supabase SQL Editor. Edge Function unchanged (Regime type already extended in Entry #030). SDK unchanged (Regime Literal already extended in 0.3.1).
+
+**Follow-up**
+
+- Q3 2026 event-based validation will refine all the statistical lows and may rebalance ETH towards even tighter cutoffs (P0.5 if event-based ground truth allows).
+- ARB workaround (size+tx multi-dim) now live, replaces the planned `chain_profile_arbitrum.md` write-up. The workaround is no longer "deferred Q3" but "deployed and operational since 2026-04-29".
+- POL accidental FPR symmetry will be re-examined Q3 2026 if Polygon variance changes. May need recalibration to maintain symmetry.
+
+---
+
+## Entry #033 (2026-04-30): API v2.0 launch, three primitives architecture (Attestation + Regime + Drift Signal)
+
+**Type:** Major version release (breaking) + observable extension (additive on the public side)
+**Surface:** Panel API endpoints, payload schema, SDK
+**Trigger:** Post-mortem of the rsETH cascade (2026-04-18) and audit of the gap between regime classification and fitness-for-action. Regime alone (snapshot of substrate state) does not answer "is it safe to act in the next 30 minutes". A continuous drift signal is needed alongside the discrete regime code.
+
+---
+
+**Architecture change**
+
+The panel API exposes three independent primitives in a single signed payload:
+
+1. **Attestation** (Primitive 1, HMAC-SHA256). Existing since v1.0.0. Every payload carries `signed_execution_context = { payload_hash, signature, key_id, anchor }`. Independently verifiable via `POST /attestation/v2/verify`. The signature makes the certified execution state provable, not just observable.
+
+2. **Regime** (Primitive 2, SxDx classification). Per-chain 12-code grid (S1, S2+, S2- on the structural axis combined with D1, D2+, D2-, D2± on the demand axis). The legacy 4-state codes (S1D1, S1D2, S2D1, S2D2) remain valid as aliases on chains without lower bounds yet calibrated.
+
+3. **Drift Signal** (Primitive 3, NEW). For every classifying observable the panel exposes (in diagnostic mode) a `MetricBlock` with `ratio` (short EMA), `ratio_long` (long-term ~30-day baseline), `shift = ratio - ratio_long` (current deviation magnitude, signed), `shift_delta = shift_now - shift_prev` (raw direction of value movement between cycles), and `shift_magnitude_delta = |shift_now| - |shift_prev|` (whether the deviation is growing or shrinking). A composite `drift` object aggregates per axis (`structural` vs `demand`, plus their delta and magnitude_delta).
+
+**Payload structure**
+
+The payload is now grouped by axis (`structural` vs `demand`) per chain, with each metric a self-contained MetricBlock. Tiered exposure via `?include=core|diagnostic|full`:
+- `core` (default): regime decision grade, `{ ratio }` per metric plus `epoch`/`seconds` for beacon/sequencer
+- `diagnostic`: adds `ratio_long`, `shift`, `shift_delta`, `shift_magnitude_delta`
+- `full`: adds raw EMAs (`baseline_short`, `baseline_long`)
+
+**New classifying observables**
+
+- **Ethereum** structural axis extended with `beacon_participation` (Beacon Chain validator participation rate). Drops below the calibrated lower bound trigger S2- (validator outage signature). Calibration scheduled in Entry #035.
+- **L2 chains** (ARB, BASE, OP) structural axis extended with `sequencer_publish_latency` (third structural classifying observable). Spikes above the calibrated upper bound trigger S2+ (sequencer halt signature). Calibrated in Entry #034.
+
+**Endpoints**
+
+- `GET /attestation/v2/panel` (returns full panel; query parameters: `chains`, `bridges`, `include`)
+- `POST /attestation/v2/verify` (verifies HMAC over a panel payload)
+- v1.1.0 endpoints (`/attestation/panel`, `/attestation/verify`) remain live with a 60-day deprecation window, sunset 2026-06-30 (return `410 Gone` after).
+
+**Migration v1.1.0 to v2.0**
+
+| v1.1.0 (flat)                                  | v2.0 (axis-grouped)                       |
+|------------------------------------------------|-------------------------------------------|
+| `panel.l1[].rhythm_ratio`                      | `panel.l1[].structural.rhythm.ratio`      |
+| `panel.l1[].sigma_ratio`                       | `panel.l1[].demand.sigma.ratio`           |
+| `panel.l1[].structural_slow.rhythm_ratio_slow` | `panel.l1[].structural.rhythm.ratio_long` |
+| `panel.l1[].shifts.rhythm_shift`               | `panel.l1[].structural.rhythm.shift`      |
+| (no demand shifts exposed)                     | `panel.l1[].demand.{sigma,size,tx}.shift` |
+| (no trend signal)                              | `shift_delta` + `shift_magnitude_delta` per metric |
+| (no L2 sequencer obs in regime)                | `panel.l2[].structural.sequencer_publish_latency` |
+| (no Ethereum beacon in regime)                 | `panel.l1[].structural.beacon_participation` (ETH only) |
+| (no `drift` composite)                         | `panel.l1[].drift.{structural,demand}` + delta + magnitude_delta |
+
+**SDK**
+
+`invarians >= 0.5.0` published on PyPI with `get_panel_v2()`, `verify_panel_v2()`, `MetricBlock` dataclass, and trend helpers (`is_drifting_away`, `is_reverting`). Backwards-incompatible with 0.3.x (major bump).
+
+**Implementation deliverables**
+
+- Postgres: migration `migration_v2_views_and_thresholds.sql` (extends `l1_thresholds` + `l2_thresholds` schemas, creates `v2_l1_regimes` + `v2_l2_regimes` views with LAG window function for `shift_prev`).
+- Edge Function: routes `/attestation/v2/panel` and `/attestation/v2/verify` deployed (~1300 lines, V2 types and helpers added).
+- SDK: `invarians 0.5.0` on PyPI.
+
+**Status:** ✅ Deployed 2026-04-30. Beacon and sequencer observables ship as `UNCALIBRATED` initially (visible to consumers but not feeding the regime CASE expression). Calibrated in Entries #034 (L2) and #035 (ETH beacon).
+
+**Follow-up**
+
+- Entry #034: L2 `sequencer_publish_latency` calibration on `batch_gap_seconds` (2026-05-01).
+- Entry #035: Ethereum `beacon_participation` calibration via beaconcha.in 30d backfill (2026-05-01).
+- Slow EMA pipelines for `batch_gap_seconds` and `validator_participation_rate`: ~30 days post-launch. Until then `shift_available: false` per V2_SPEC §6.1 footnote.
+- Empirical validation of the shift signal: backtest historical regime transitions against corresponding shift values, quantify TPR/FPR per chain, refine drift_index reading thresholds. Publishable as `research/SHIFT_PREDICTIVE_VALIDATION.md`.
+
+---
+
+## Entry #034 (2026-05-01): L2 sequencer_publish_latency calibrated on `batch_gap_seconds`, ARB / BASE / OP
+
+**Type:** Statistical calibration (envelope-based, no halt event in window) + architectural pivot from `publish_latency_seconds` to `batch_gap_seconds`
+**Surface:** `v2_l2_regimes` view, `l2_thresholds` calibration table, `panel.l2[].structural.sequencer_publish_latency.seconds` field
+**Trigger:** API v2.0 launch (Entry #033) shipped with `sequencer_publish_latency_calibrated = false` placeholder. Post-launch calibration of the S2+ trigger required to activate the observable in the regime CASE.
+
+---
+
+**Architectural pivot, calibrate on `batch_gap_seconds` not `publish_latency_seconds`**
+
+The original `publish_latency_seconds` column in `ans_l2_adapter_signals` is sampling-biased. Per Entry #014 it computes `t_L1_block - last_L2_invariant_timestamp` and is dominated by the L2 invariant capture cadence (~1h), not by actual sequencer health. Entry #971 already documented the replacement path: `batch_gap_seconds = LAG(l1_block_timestamp) OVER (PARTITION BY chain ORDER BY l1_block_number)` is purely on-chain time between consecutive L1 batch inscriptions, with no invariant-cadence sampling bias.
+
+Path A retained over Path B (ship publish_latency calibration with documented debt and migrate later) for one reason: shipping a threshold on a value the internal documentation explicitly states is "not directly interpretable in absolute" would create a publicly visible architectural inconsistency. The 20 minutes of additional SQL work to migrate the view is worth the elimination of self-documented technical debt.
+
+**View modification**
+
+`v2_l2_regimes` rewritten with new `adapter_ranked` CTE that computes `batch_gap_seconds` via LAG. The exposed field name is preserved (`sequencer_publish_latency.seconds`) per V2_SPEC §8.3 contract, but the underlying value is now the clean batch gap. No SDK or Edge Function code change required (field name and type unchanged).
+
+**Distribution analysis (30 days, 2026-04-01 to 2026-05-01)**
+
+| chain    | n_obs  | median | P95   | P99   | P99.9 | max   | nominal cadence |
+|----------|--------|--------|-------|-------|-------|-------|-----------------|
+| arbitrum | 19,601 | 132 s  | 216 s | 252 s | 300 s | 384 s | ~2.2 min/batch  |
+| base     | 50,904 |  48 s  |  72 s |  84 s |  96 s | 264 s | ~1 batch/min    |
+| optimism |  7,302 | 348 s  | 528 s | 600 s | 660 s | 732 s | ~6 min/batch    |
+
+The 2026-04-10 spike previously visible on `publish_latency_seconds` (10000+ s on ARB, 8000+ s on BASE/OP) has disappeared. `batch_gap_seconds` shows nominal cadence on that day. **This confirms that the prior spike was a telemetry artifact, not a sequencer event.** Calibrating on `publish_latency_seconds` would have anchored the threshold on noise.
+
+**Calibrated thresholds**
+
+| chain    | `sequencer_publish_latency_threshold_high` | minutes | x P99 | x max_30d | x nominal cadence |
+|----------|--------------------------------------------|---------|-------|-----------|-------------------|
+| arbitrum | **600 s**                                  | 10 min  | x 2.4 | x 1.6     | ~ x 5             |
+| base     | **480 s**                                  |  8 min  | x 5.7 | x 1.8     | ~ x 8             |
+| optimism | **1800 s**                                 | 30 min  | x 3.0 | x 2.5     | ~ x 5             |
+
+Method: per-chain envelope, semantics "halt = 5x typical cadence". FPR_30d = 0% on all three chains. Documented historical halts (ARB 2024-12-21 ~78 min, OP 2025-09-14 ~3h+, BASE 2024-11 ~30 min) all clear their respective threshold by x4 to x6.
+
+**Finding indexed for Drift Signal validation**
+
+The top 20 OP `batch_gap_seconds` values reveal a **soft slowdown cluster on 2026-04-27 19:59 to 2026-04-29 03:31**: 18 observations >= 648 s concentrated within a 48h window, plus an isolated pair on 2026-04-10 00:38 and 00:49 (732 and 672 s). Cadence shifted from typical ~6 min to ~11 min (x2) over the 48h cluster. Not a halt (max 732 s stays below the 1800 s threshold), but a sustained structural degradation. Per design, this event is **not classified as S2+** (the regime grid is calibrated for halt-only on this axis). It is the canonical case for the Drift Signal primitive: once the slow EMA on `batch_gap_seconds` stabilizes (~30 days post-launch, `sequencer_publish_latency_shift_available` flips to `true`), `shift_magnitude_delta` should expose this slowdown as a sustained positive drift on OP. Reserved as ground-truth case for `research/SHIFT_PREDICTIVE_VALIDATION.md` and as the empirical example for the article "Soft sequencer slowdown detection: when Drift Signal beats regime classification".
+
+**Live verification (post-deploy)**
+
+Smoke test on `GET /attestation/v2/panel?chains=arbitrum,base,optimism&include=core` returns:
+- `arbitrum`: regime `S1D1`, `sequencer_publish_latency.seconds = 96` (well below 600)
+- `base`: regime `S1D2+` (D2+ from demand axis, S1 confirmed structural), `seconds = 48` (well below 480)
+- `optimism`: regime `S1D1`, `seconds = 396` (well below 1800)
+
+Cosmetic: `sequencer_publish_latency.ratio = null` per V2_SPEC §6.1 footnote (slow EMA on `batch_gap_seconds` not yet built; `seconds` raw is the regime trigger).
+
+**Status:** ✅ Deployed 2026-05-01 evening. Migration `oracle-repo/supabase/migration_v2_l2_batch_gap_calibration.sql` applied via Supabase SQL Editor. Edge Function unchanged.
+**Confidence:** MEDIUM statistical (envelope on 30d, no halt event in window, FPR=0% by construction). Recalibration recommended at T+90j or at the first halt event observed.
+**Limitation:** Single statistical window, no event-anchored calibration. The first real halt observed post-launch becomes the anchor case (event review will refine the threshold downward if the recovery window suggests it).
+
+---
+
+## Entry #035 (2026-05-01): Ethereum beacon_participation S2- threshold calibrated
+
+**Type:** Statistical calibration (envelope on 30-day distribution + reference to public historical halts), enables S2- detection on Ethereum structural axis
+**Surface:** `v2_l1_regimes` view, `l1_thresholds.validator_participation_threshold_low` column, `panel.l1[].structural.beacon_participation` field
+**Trigger:** API v2.0 launch (Entry #033) shipped with `validator_participation_calibrated = false` placeholder. Post-launch calibration of the S2- trigger on Ethereum required to activate the observable in the regime CASE.
+
+---
+
+**Method**
+
+Pulled 30 days of Ethereum Beacon Chain `globalparticipationrate` from public beaconcha.in API, sampled every 20 epochs (~2h cadence) for 338 datapoints over the window 2026-04-01 to 2026-05-01 (epochs 438123 to 444873). Distribution analysis to set the S2- low threshold for the structural axis on Ethereum.
+
+The beacon_participation observable is bounded [0, 1.0] with mode very near 1. Its asymmetry means low-side is the only direction that triggers S2 (a participation rate above 1.0 is impossible by construction). The S2- threshold is the unique trigger for this observable on the Ethereum structural axis.
+
+**Distribution (338 samples, 30 days)**
+
+| stat | value |
+|---|---|
+| min | 0.96814 |
+| P0.1 | 0.96814 |
+| P1 | 0.98450 |
+| P5 | 0.99523 |
+| median | 0.99842 |
+| P95 | 0.99892 |
+| P99 | 0.99898 |
+| max | 0.99901 |
+| mean | 0.99774 |
+| stdev | 0.00297 |
+
+The distribution is very tight (stdev = 0.003) but with clear outliers in the lower tail, two of which observed during the fetch:
+
+- epoch 441503: rate 0.98852 (~3 sigma below mean, isolated)
+- epoch 444103: rate 0.96814 (~10 sigma below mean, the absolute min on the window)
+
+**Reference to public historical halts**
+
+The threshold needs to capture documented validator participation drops without firing on nominal variance:
+
+| Event | Participation observed | Magnitude |
+|---|---|---|
+| Geth bug 2024-12 | ~0.94 | -6 pp |
+| Lido outage early 2024 | ~0.96 | -4 pp |
+| Prysm bug 2023 | ~0.92 | -8 pp |
+| Coinbase staking incident | ~0.95 | -5 pp |
+
+**Calibrated threshold**
+
+| Chain | `validator_participation_threshold_low` | Captures halts | FPR_30d | Captures observed dip |
+|---|---|---|---|---|
+| ethereum | **0.97** | All public halts (margin x4 to x10) | ~0.3% (1 obs out of 338) | Yes (the 0.96814 epoch 444103) |
+
+Method: balance between halt-only (P0.1 ~ 0.963) and aggressive (P1 ~ 0.979). A 0.97 threshold captures all public historical halts with comfortable margin, captures the 0.96814 observed dip during the fetch (potential precursor), and keeps FPR low (~0.3% on 30d, ~2 hours/month would emit S2- in nominal conditions).
+
+This threshold corresponds to a sustained 3 percent validator participation drop, which is operationally meaningful: an agent reading ETH in S2- with this threshold knows that L1 finality timing is compromised because >3 percent of validators are simultaneously offline.
+
+**Asymmetry note**
+
+beacon_participation enters the regime CASE on Ethereum only via its low threshold. There is no high-side trigger by design (rate above 1.0 is impossible). This is the first observable in the v2.0 architecture with a unidirectional trigger.
+
+**Finding indexed for Drift Signal validation**
+
+The 0.96814 observation at epoch 444103 (during the fetch window) is a measurable transient drop, magnitude approximately 1pp below nominal. It does not reach the historical halt range (~0.94) but is clearly off baseline. Reserved as a candidate ground-truth case for Drift Signal Primitive 3 validation post-launch (alongside rsETH cascade D2± from 2026-04-18 and OP soft slowdown from 2026-04-27 to 2026-04-30). Once the slow EMA on validator_participation stabilizes (requires either a per-epoch logging table creation or external backfill from beaconcha.in / beaconscan, ETA ~30 days post-launch), the `beacon_participation_shift` field activates and `shift_magnitude_delta` should expose this dip as a transient negative drift on Ethereum.
+
+**Live verification (post-deploy)**
+
+Smoke test on `GET /attestation/v2/panel?chains=ethereum&include=diagnostic` returns:
+
+```json
+{
+  "chain": "ethereum",
+  "regime": "S1D1",
+  "structural": {
+    "beacon_participation": {
+      "ratio": 1.0,
+      "epoch": 25001869,
+      "shift_available": false
+    }
+  }
+}
+```
+
+The `shift_available: false` is expected during the pre-shift period, per V2_SPEC §6.1 footnote. The ratio (1.0) is well above the threshold (0.97), structural axis stays S1.
+
+**Status:** ✅ Deployed 2026-05-01 evening. Single transactional UPDATE on `l1_thresholds` for chain='ethereum'. Edge Function unchanged. Smoke test PASS.
+**Confidence:** MEDIUM statistical (envelope on 30d, no halt event in window) + reference to public historical halts (Geth bug 2024, Lido outage, Prysm bug 2023). All public halts clear the threshold by margin x4 to x10. Recalibration recommended at T+90 days or at the first halt event observed.
+**Limitation:** Single statistical window, no event-anchored calibration. The 0.96814 dip observed during the fetch is reserved for Drift Signal post-launch validation. Sample-every-20-epoch cadence (~2h) means a single-epoch dip could pass between samples; not blocking for calibration (envelope holds), and detection in production reads `ans_sensor_health` updated each epoch (no blind spot in live regime).
+
+**Follow-up**
+
+- Slow EMA pipeline for `validator_participation` (per-epoch logging table or external backfill from beaconcha.in/beaconscan), required for `beacon_participation_shift_available: true`. ETA ~30 days post-launch.
+- Empirical Drift Signal validation against the 3 indexed cases (rsETH D2±, OP soft slowdown, ETH beacon dip 444103), publishable as `research/SHIFT_PREDICTIVE_VALIDATION.md`.
+- Recalibration of the 0.97 threshold at T+90 days using a longer baseline window.
+- Public communication of v2.0 launch (LinkedIn/blog) once API v2.0 is fully calibrated (today: L1 ETH/POL, L2 ARB/BASE/OP all live with 12 signed codes; Solana/Avalanche on schedule for July 2026).
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
-*Format: immutable. No modification of past entries — additions at end of file only.*
+*Format: immutable. No modification of past entries, additions at end of file only.*

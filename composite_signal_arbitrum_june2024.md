@@ -22,7 +22,7 @@ They do not see: the internal state of the L2 sequencer, nor the blob posting fl
 **What Invarians sees:**
 - L2: ARB structural regime (L2 basefee, tx volume, block size)
 - Bridge: blob posting flow to L1 (last_blob_age vs EMA baseline)
-- Composite: real-time multi-layer correlation
+- Composite: live multi-layer correlation
 
 ---
 

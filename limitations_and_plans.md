@@ -106,6 +106,12 @@ BigQuery Solana Blocks does not contain `transaction_count`. π calibration is p
 **L2 signals differ from L1 by design.**
 Rollups with centralized sequencers (Arbitrum, Base, Optimism) cannot reproduce the τ signal that works on L1s with decentralized consensus. This is correct and documented in `methodology.md §7.4`. The L2 framework (π, μ, σ) is separate from the L1 framework (S/D).
 
+**Native L1 to L2 deposit lane not instrumented.**
+Native canonical bridges (Arbitrum, Base, Optimism to Ethereum) measure the L2 to L1 batch posting cadence (`last_batch_age_seconds`), which is the security-relevant direction for withdrawal validity and rollup finality. The reverse direction (L1 to L2 deposit lane: events such as `MessageDelivered` on L1 Inbox, `RetryableTicketCreated` or `RelayedMessage` on L2) is not collected today. This is a deliberate scoping choice: institutional RWA settlement flows move stablecoins via CCTP and tokens via CCIP, both of which are bidirectional and instrumented in both directions on the active scope (5 EVM corridors per topology). A native L1 to L2 collector is on the v2.1 roadmap (Q3 to Q4 2026) and will be activated only if observed agent demand justifies the additional surface area.
+
+**Drift Signal `shift_available: false` per metric until 30-day EMA stabilizes.**
+For each classifying observable freshly added to the panel (initially `beacon_participation` on Ethereum and `sequencer_publish_latency` on Arbitrum, Base, Optimism), the long-term EMA needs about 30 days of production samples before `shift` and `shift_delta` become statistically meaningful. The panel exposes the raw value (ratio or seconds) in the meantime, plus the explicit `shift_available: false` flag so that a consumer cannot mistake an absent signal for a stable one. Activation date for the v2.0 cohort: end-May 2026.
+
 ### 2.5 Ground truth quality
 
 **Ground truth is manually curated.**
@@ -115,7 +121,7 @@ The lists of events (Merge, Shanghai, Solana outages, Polygon Reorg Storm, etc.)
 
 Invarians Labs began accumulating regime-distribution baselines across L1 × L2 × Bridge pairs on **2026-03-30**. This baseline is the instrument Labs uses to test its central hypothesis (agentic load → structural deformation). The baseline has three properties that interact with calibration:
 
-1. **It cannot be reconstructed retroactively.** Regime labels assigned in real time by the current threshold set are the object of study. Recomputing them later with a different threshold set creates a different baseline, not a corrected one.
+1. **It cannot be reconstructed retroactively.** Regime labels assigned live by the current threshold set are the object of study. Recomputing them later with a different threshold set creates a different baseline, not a corrected one.
 2. **It is sensitive to calibration changes.** A revised `threshold_s2` or a D2 logic update shifts the fraction of windows labeled S2 / D2, independently of any underlying structural change on the chain. To Labs this shows up as a level shift in the aggregated series.
 3. **It must distinguish two causes of regime-frequency movement.** Labs' measurement of interest is *"regime distribution changed because agentic load deformed the chain"*. The measurement error to avoid is *"regime distribution changed because we moved the threshold"*. The two are cryptographically indistinguishable in the attestation record alone.
 
@@ -133,6 +139,8 @@ Dates are targets. Slippage is disclosed in `calibration_log.md`.
 
 - **✅ Done 2026-04-19** — Exact Clopper-Pearson IC95% added to all published TPR / FPR (Entry #019, `scripts/ci_binomial.py`).
 - **✅ Done 2026-04-19** — Temporal cross-validation ETH D2 (Entry #021, `scripts/cv_eth.py`, `backtest_ethereum.md §6`). Train 2020–2022 / test 2022-09 → 2023-12. TPR_test = 2/2 with IC95% [15.81% ; 100%]; FPR_test = 0.65% with published triplet, IC95% [0.51% ; 0.81%]. Caveat: `threshold_s2` not CV'd (no τ-event pre-Merge).
+- **✅ Done 2026-04-29** — Calibration centralization (Entry #029). All L1/L2 thresholds extracted from TS Edge Function constants and inline view CTEs into dedicated Postgres tables (`l1_thresholds`, `l2_thresholds`). Polygon TS↔Postgres drift resolved (event-based v2.0 now single source). API `v1.0.0 → v1.1.0` with new fields `structural_slow` (long-term EMA ~30d) and `shifts` (delta short-long, validates the "nominal not fixed" thesis).
+- **✅ Done 2026-04-29 PM** — Phase β bilateral regime codes deployed (Entries #030, #031). Schema extended with low thresholds (D2-, D2±, S2-) and conditional view logic. Statistical activation on ETH (P2, FPR ~2%), POL (P5, FPR ~5%), BASE (P2), OP (P2). SOL/AVAX/ARB explicitly excluded with documented reasons. First live emission of bilateral codes in production: BASE and OP returned `S1D2+` at 17:00 UTC. Code path `Postgres view → Edge Function → signed panel JSON` validated end-to-end. Calibrations are statistical and provisional; event-based validation deferred to Q3 2026.
 - **In progress** — Threat model section in `methodology.md` (mempool flooding, post-dating, key compromise, eclipse, vectors against the single-node signer).
 - **May 2026** — `InvariansAnchor` contract deployed on Arbitrum. Periodically anchors batched attestation hashes on-chain for public tamper-evidence. Historical Supabase records become cryptographically comparable to their on-chain commitment.
 - **Q2 2026** — MCP server activation at `agentic.invarians.com/mcp`. Schema stable and published at [`agentic.invarians.com/.well-known/mcp.json`](https://agentic.invarians.com/.well-known/mcp.json); A2A discovery at `.well-known/agent.json`. Tools `invarians_get_scope()` and `invarians_get_execution_context(from, to)` documented in [`agentic.invarians.com/llms.txt`](https://agentic.invarians.com/llms.txt). Multi-RPC collector architecture is already operational in production behind the REST API — the MCP layer exposes the same multi-source context to agents.
@@ -140,10 +148,19 @@ Dates are targets. Slippage is disclosed in `calibration_log.md`.
 
 ### Q3 2026 (July–September)
 
-- **July 2026** — Solana π calibration with full backtest (sensor data ready mid-June). SOL π moves from `LOW` to `MEDIUM event-based`.
-- **July 2026** — Avalanche event-based calibration begins.
+- **July 2026** — Solana π calibration with full backtest (sensor data ready mid-June). SOL π moves from `LOW` to `MEDIUM event-based`. Phase β bilateral codes activated on SOL alongside.
+- **July 2026** — Avalanche event-based calibration begins. Phase β bilateral codes activated on AVAX.
+- **Q3 2026** — **Phase β event-based recalibration of L1 lows** (Entry #031 follow-up). Validates the statistical statistical_p2/p5 lower bounds against documented bilateral incidents:
+  - rsETH cascade 2026-04-18 (ETH S1D2± expected)
+  - MakerDAO Black Thursday 2020-03-12 (ETH S1D2± expected)
+  - USDC depeg 2023-03-11 (ETH S1D2± expected)
+  - Curve July reentrancy 2023-07-30 (ETH S1D2± expected)
+  - Arbitrum sequencer halt 2024-12-15 (ARB S2+D2- expected)
+  - Optimism rare mode 2024-09 (OP S2+D2- expected)
+  - Solana outages ×4 2021-09 → 2022-10 (SOL S2+D2- or S2-D1 expected)
+  Outputs: per-chain TPR/FPR with IC95% on the lower-bound triggers. Refined values UPDATEd in `l1_thresholds`. Move calibration_method from `statistical_p*_provisional` to `event_based_phi_*`.
 - **Q3 2026** — Agent feedback protocol: integrating agents can report incidents they lived through, enriching ground truth retroactively. Reduces near-miss bias in FPR.
-- **Q3 2026** — Arbitrum 2-of-2 workaround documented publicly.
+- **Q3 2026** — Arbitrum 2-of-2 workaround documented publicly (`chain_profile_arbitrum.md`). Multi-dim demand on size+tx replaces the degenerate sigma threshold. Phase β L2 activation on ARB completed.
 - **Q3 2026** — α and Φ sensitivity analyses published (FPR × α × Φ matrix per chain).
 - **Q3 2026** — Generalize `cv_eth.py` to POL and SOL once events allow (SOL has 4 outages concentrated 2021-09 → 2022-10, POL events span 2020 → 2024).
 
@@ -227,7 +244,7 @@ Obvious.
 
 Certain properties of the Invarians signal have been framed as defects in prior reviews but are **by design**:
 
-- **~18h detection latency on The Merge**: Invarians is a slow structural regime indicator (EMA `α_fast = 2/11` → ~10h integrated window), not a real-time alarm. For minute-level signals, a different product is required.
+- **~18h detection latency on The Merge**: Invarians is a slow structural regime indicator (EMA `α_fast = 2/11` → ~10h integrated window), not a low-latency alarm. For minute-level signals, a different product is required.
 - **DeFi Summer not detected on ETH**: infrastructure handled the load; this is correct non-detection (healthy infrastructure, elevated demand). See `backtest_ethereum.md` §4.
 - **L1/L2 asymmetry**: rollup sequencers are deterministic, so τ is structurally flat on L2s. Applying L1 models to L2s would be wrong; we use a distinct L2 framework (π, μ, σ).
 - **Dormant Arbitrum τ**: see §2.4 for the 2-of-2 workaround that replaces it.

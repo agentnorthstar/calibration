@@ -21,6 +21,8 @@ v1_superseded_by: "v2.0 — production-aligned Φ=720, see calibration_log #023"
 
 # Backtest Polygon — Structural Signal Validation 2020–2024
 
+> **Note on API v2.0 (2026-04-30):** the figures below were computed on the legacy 4-state grid. The 12 signed codes introduced in v2.0 (S2±, D2±) are an additive extension that further partitions states without invalidating the calibration. The TPR/FPR figures published here remain the validation of record.
+
 > **Status:** MEDIUM event-based — production-aligned Φ=720, TPR=100% (4/4 events), FPR=14.57%
 >
 > **Headline results with exact binomial confidence intervals (Φ=720, production-aligned):**

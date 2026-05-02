@@ -40,6 +40,8 @@ confidence_d2: MEDIUM
 
 # Backtest Ethereum — 2020–2024
 
+> **Note on API v2.0 (2026-04-30):** the figures below were computed on the legacy 4-state grid (S1D1, S1D2, S2D1, S2D2). The 12 signed codes introduced in v2.0 (S2±, D2±) are an additive extension that further partitions states without invalidating the calibration. The TPR/FPR figures published here remain the validation of record. Per-metric `shift` activates on the live panel once the long-term EMA stabilizes (~30 days post v2.0 launch).
+
 > **Status:** validated — threshold_s2=1.12 and 2-of-3 D2 logic (σ=1.10, size=1.20, tx=1.10) validated.
 >
 > **Headline results with exact binomial confidence intervals:**

@@ -57,6 +57,8 @@ The fast ratio detects stress episodes. The slow ratio measures structural drift
 
 ### 2.3 State classification
 
+#### Phase α — legacy 4-state (one-sided thresholds, default)
+
 ```
 τ (structure):
   S1 : rhythm_ratio < threshold_s2     → nominal structure
@@ -77,9 +79,62 @@ Composite states:
 economic signature. No fee monitor, no gas tracker detects it. This is Invarians'
 fundamental competitive differentiator.
 
-> ⚠️ This classification (SxDx) applies to **L1 only**. On L2, τ is dead by design
-> (section 7.1) — the S2Dx classification does not exist. L2 uses a distinct framework (π, μ, σ),
-> see section 7.4.
+#### Phase β — bilateral 12-state (signed thresholds, since 2026-04-29)
+
+The original four-state grid is one-sided: it only captures deviations *above* the nominal
+window. But several real-world signatures fall *below* nominal: cascading liquidations
+(transactions concentrated, total tx_count drops), sequencer halts (rhythm slows AND tx_count
+drops), censorship of a transaction class (selective tx exclusion), agentic bundle dominance
+(size up, tx down). The rsETH cascade of 2026-04-18 was the canonical case where one-sided
+thresholds missed the asymmetric signature on Ethereum.
+
+The bilateral grid extends the classification to lower bounds:
+
+```
+τ (structure, signed):
+  S1   : low ≤ rhythm_ratio ≤ high          → nominal
+  S2+  : rhythm_ratio > threshold_s2_high   → blocks slowed
+  S2-  : rhythm_ratio < threshold_s2_low    → blocks accelerated abnormally
+
+π (demand, signed):
+  D1   : all ratios within bounds                                 → nominal
+  D2+  : at least one ratio above its high threshold (only above) → demand elevated
+  D2-  : at least one ratio below its low threshold (only below)  → demand depressed
+  D2±  : at least one above AND at least one below                → composition asymmetric
+
+Composite states (12 for L1, 9 for L2 single-dim):
+  S1D1, S1D2+, S1D2-, S1D2±,
+  S2+D1, S2-D1,
+  S2+D2+, S2+D2-, S2+D2±,
+  S2-D2+, S2-D2-, S2-D2±
+```
+
+**`D2±` is the agentic concentration signature.** Size-up + tx-down (or vice versa) means
+the chain is processing fewer but larger transactions than baseline — typical of bot
+cascades on Aave or Compound, MEV searcher dominance, or stablecoin depeg arbitrage HFT.
+
+#### Activation per chain
+
+Phase β activates per chain via the `low_thresholds_calibrated` flag on `l1_thresholds` and
+`l2_thresholds` tables. When the flag is `false` (or any low threshold is `NULL`), the view
+falls back to phase α legacy. When `true` and all lows populated, the view emits the 12-state
+extended codes.
+
+State as of 2026-04-29:
+- **L1 phase β active**: ETH (P2 statistical, FPR ~2%), POL (P5 statistical, FPR ~5%)
+- **L1 phase α only**: SOL (pi calibration scheduled July 2026), AVAX (no published backtest)
+- **L2 phase β active**: BASE (P2), OP (P2)
+- **L2 phase α only**: ARB (sigma_ratio structurally degenerate on Arbitrum Nitro)
+
+#### Note on L2 demand axis
+
+> ⚠️ This classification (SxDx) was originally defined for **L1 multi-dim demand** (sigma + size + tx).
+> On L2, τ is dead by design (section 7.1) — the S2Dx classification was extended to L2 via
+> single-dim demand on sigma_ratio only. As a consequence, `D2±` cannot arise naturally on L2
+> (a single variable cannot be simultaneously above and below). L2 phase β emits 9 codes,
+> not 12. ARB additionally has sigma_ratio frozen at 1.0 by Nitro design, so any sigma-based
+> threshold is degenerate. A multi-dim demand workaround for ARB (size+tx based, AGENT internal
+> Rule 10) is documented in `chain_profile_arbitrum.md` (planned Q3 2026).
 
 ---
 
@@ -700,7 +755,7 @@ DEMAND (L2)    →  sequencer reacts  →  BATCH SUBMISSION (L1)
 
 1. **Mono-signal vs multi-signal.** On L1, D2 requires 2 of 3 dims (sigma + size + tx) — multi-signal consensus, combined FPR ~1.2%. On L2, `sigma_ratio` is the only reliable signal on BASE/OP (size and tx not event-calibrated). A mono-signal threshold placed at the same percentile as L1 produces a structurally higher FPR. L2 thresholds are not numerically comparable to L1 thresholds.
 
-2. **Statistical vs event-based.** L1 thresholds are derived by event-detection (BigQuery — The Merge, Solana outages, Polygon Reorg Storm). L2 thresholds are statistical (percentile on production distribution). The forensic on-chain signal `batch_gap_seconds` (§9.3b) is available in live data since 2026-03-17; retroactive event-detection calibration awaits the archive node replay programmed Q3 2026 (see §9.3b).
+2. **Statistical vs event-based.** L1 thresholds are derived by event-detection (BigQuery — The Merge, Solana outages, Polygon Reorg Storm). L2 thresholds are statistical (percentile on production distribution). The on-chain event-based signal `batch_gap_seconds` (§9.3b) is available in live data since 2026-03-17; retroactive event-detection calibration awaits the archive node replay programmed Q3 2026 (see §9.3b).
 
 **L2 calibration status:**
 - Thresholds in production (operational), derived by statistical P97 method on ≥30d
@@ -729,9 +784,9 @@ of activity (more complex transactions, not necessarily more numerous).
 | `blob_usage` | blob_count / 6 | **Phase C** | BASE, OP | Blob market saturation (cross-L2 resource) |
 | `batch_gap_seconds` *(derived)* | `l1_block_timestamp − LAG(l1_block_timestamp) OVER (PARTITION BY chain ORDER BY l1_block_timestamp)` | **Phase C — derived** | ARB, BASE, OP | Sequencer cadence signal (pure on-chain) |
 
-### 9.3b L2 forensic event detection protocol
+### 9.3b L2 archive-replay event detection protocol
 
-Phase C adapter signals were initially intended to feed Phase D event-detection calibration through external historical data. We have since validated that a **purely on-chain forensic protocol** is feasible using the `batch_gap_seconds` signal derived above — removing the dependency on external curation.
+Phase C adapter signals were initially intended to feed Phase D event-detection calibration through external historical data. A **purely on-chain archive-replay protocol** has since been validated as feasible using the `batch_gap_seconds` signal derived above, removing the dependency on external curation.
 
 **Protocol**
 
@@ -755,7 +810,7 @@ Incident candidate = any batch_gap > N × nominal_ceiling
 
 The `max_gap` values (ARB ≈ 12 min, OP ≈ 12 min, BASE ≈ 5 min) reflect the **protocol-level batch timeout** — the safety mechanism by which a sequencer posts whatever it has accumulated when the configured inactivity window elapses. These are not incidents; they are the natural upper bound of the nominal regime.
 
-**Provisional forensic thresholds** (candidate — awaiting ground truth validation)
+**Provisional event-based thresholds** (candidate — awaiting ground truth validation)
 
 | chain | protocol ceiling | incident threshold candidate (3× ceiling) |
 |-------|------------------|-------------------------------------------|
@@ -771,7 +826,7 @@ The 2026-03-17 → 2026-04-19 observation window contains **no L2 sequencer stre
 
 A retroactive L1 scan of the ARB SequencerInbox, BASE BatchInbox, and OP BatchInbox on an Ethereum archive node will extend the `ans_l2_adapter_signals` history to cover previously documented L2 sequencer incidents (e.g. OP 2024-02-15, BASE 2024-09-05). This replay uses the same adapter logic currently running in production — no external indexer or third-party platform is required.
 
-Upon completion of the archive replay, a sweep over the candidate thresholds against the extended incident set will produce TPR/FPR with Clopper-Pearson IC95%, as for L1 chains. At that point L2 thresholds will graduate from MEDIUM statistical to MEDIUM event-based (forensic) and be publishable in `ans_registry`.
+Upon completion of the archive replay, a sweep over the candidate thresholds against the extended incident set will produce TPR/FPR with Clopper-Pearson IC95%, as for L1 chains. At that point L2 thresholds will graduate from MEDIUM statistical to MEDIUM event-based and be publishable in `ans_registry`.
 
 ### 9.4 Synthesis by layer and state framework
 

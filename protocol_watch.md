@@ -118,5 +118,28 @@ Bundlers add specific latency and competition that did not exist with classic EO
 
 ---
 
-*Last updated: 2026-04-11*
+## Invarians API v2.0 — internal protocol upgrade
+
+**Status:** Live, deployed mainnet 2026-04-30
+**Source:** `research/api/V2_SPEC.md`, `calibration_log.md` entries #033 to #036
+
+**Technical description:**
+API v2.0 unifies three primitives in a single signed payload: Attestation (HMAC-SHA256), Regime (12 signed codes per chain via the structural × demand grid with explicit direction suffixes S2±, D2±), Drift Signal (per-metric `MetricBlock` with `ratio`, `ratio_long`, `shift`, `shift_delta`, `shift_magnitude_delta` plus per-axis composite drift). Two new structural classifying observables ship with v2.0: `beacon_participation` on Ethereum L1 (validator participation rate, low-side trigger only) and `sequencer_publish_latency` on Arbitrum, Base, Optimism L2 rollups (batch posting cadence, high-side trigger).
+
+**Impact on Invarians:**
+
+The 12 signed codes are an additive extension of the legacy 4-state grid (S1D1, S1D2, S2D1, S2D2 remain valid as aliases when low thresholds are not yet calibrated). All historical backtests remain valid as the calibration of record; the signed codes further partition states without invalidating prior TPR/FPR figures.
+
+The Drift Signal exposes soft slowdowns and slow drifts that do not flip the regime, addressing the gap between regime classification (calibrated halt-only on the structural axis) and operational decisions that require sub-halt timing buffers (RWA settlement, audit-grade SLAs).
+
+**Required action:**
+- v1.1.0 endpoints `/attestation/panel` and `/attestation/verify` remain live until 2026-06-30, then return `410 Gone`.
+- Per-metric `shift_available: false` on `beacon_participation` and `sequencer_publish_latency` until the long-term EMA stabilizes (~30 days, target end-May 2026).
+- Solana and Avalanche remain on the legacy 4-state grid until July 2026 calibration window.
+
+**Priority:** High — spec of record for all new integrations.
+
+---
+
+*Last updated: 2026-05-02*
 *Update rule: any new entry must cite a verified primary source.*

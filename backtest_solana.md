@@ -26,6 +26,8 @@ confidence_pi: LOW
 
 # Backtest Solana — τ (2021–2024)
 
+> **Note on API v2.0 (2026-04-30):** Solana remains on the legacy 4-state grid in v2.0 pending the July 2026 calibration window. The 12 signed codes apply to chains with calibrated lower bounds (currently Ethereum, Polygon on L1, plus Arbitrum, Base, Optimism on L2). The figures below remain the validation of record for τ.
+
 > **Status:** validated — threshold_s2=1.12 validated on τ. FPR_τ=1.77%.
 >
 > **Headline results with exact binomial confidence intervals:**
