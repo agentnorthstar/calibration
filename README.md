@@ -56,7 +56,7 @@ API v2.0 unifies three primitives in a single signed payload:
 
 | Primitive | Purpose |
 |---|---|
-| **Attestation** | HMAC-SHA256 over the canonical payload, independently verifiable via `/attestation/v2/verify`. |
+| **Attestation** | HMAC-SHA256 over the canonical payload, independently verifiable via `POST https://api.invarians.com/v2/verify`. |
 | **Regime** | 12 signed codes per chain (S1, S2+, S2-, D1, D2+, D2-, D2±) on L1 and L2, plus bridge state. |
 | **Drift Signal** | Per-metric `MetricBlock` (`ratio`, `ratio_long`, `shift`, `shift_delta`, `shift_magnitude_delta`) and per-axis composite drift. |
 
