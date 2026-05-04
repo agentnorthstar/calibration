@@ -1682,5 +1682,216 @@ The `shift_available: false` is expected during the pre-shift period, per V2_SPE
 
 ---
 
+## Entry #036 (2026-05-04): CCTP route classification calibrated on `circle_api_latency_ms`, preliminary P97/14d
+
+**Type:** Statistical calibration (envelope-based, preliminary 14-day window pending production-grade 30-day re-calibration)
+**Surface:** `bridge_thresholds` table (10 CCTP routes), `panel.bridges[].state` field for `bridge_type='cctp'` entries
+**Trigger:** Activation of bridge classification beyond native L2-to-L1, leveraging 14 days of CCTP raw signals collected since 2026-04-20 by `invarians-cctp-collector` running on the VPS.
+
+---
+
+**Method**
+
+CCTP routes expose two latency observables in `ans_cctp_route_signals`: `attestation_latency_p90_s` (Circle attestation API latency for actually-transferred messages) and `circle_api_latency_ms` (continuous health-check latency on the Circle attestation API endpoint). The first is a measure of effective end-to-end message latency, the second is an availability and responsiveness probe of the underlying Circle infrastructure.
+
+Distribution analysis on 14 days of collection (~2000 samples per route):
+
+| observable | non_null coverage | semantics |
+|---|---|---|
+| `attestation_latency_p90_s` | 0% over 14d window | filled only when actual messages transit, periods of low CCTP activity leave this NULL |
+| `circle_api_latency_ms` | 99.97% (19982 / 19988) | filled continuously by the collector via Circle API health probe |
+
+The second observable is calibratable. The first is not, until throughput grows.
+
+The chosen method calibrates the BS1/BS2 boundary on `circle_api_latency_ms`. Semantics: when Circle attestation infrastructure responds slowly under stress, downstream message attestation latency is mechanically affected. Stress on the API health check is an upstream proxy for stress on the actual settlement path.
+
+Per-route P97 over the 14-day window:
+
+| route | P50 (ms) | P97 (ms) | P99 (ms) | max (ms) | n samples |
+|---|---|---|---|---|---|
+| arbitrum-base/cctp | 151 | 265.8 | 476 | 4639 | 1999 |
+| arbitrum-ethereum/cctp | 151 | 303.5 | 479 | 1385 | 1998 |
+| avalanche-ethereum/cctp | 151 | 211 | 450 | 4677 | 1999 |
+| base-arbitrum/cctp | 151 | 265.1 | 476 | 4744 | 1998 |
+| base-ethereum/cctp | 151 | 234 | 477 | 6790 | 1997 |
+| ethereum-arbitrum/cctp | 184 | 475 | 528 | 2703 | 1998 |
+| ethereum-avalanche/cctp | 152 | 430.4 | 478 | 3170 | 1998 |
+| ethereum-base/cctp | 152 | 447 | 485 | 2816 | 1997 |
+| ethereum-optimism/cctp | 152 | 453.1 | 487 | 4264 | 1999 |
+| optimism-ethereum/cctp | 151 | 207 | 450 | 9248 | 1999 |
+
+Distributions are well-behaved with stable medians (~150ms), tight P97 (~200-475ms), and outlier tails reaching ~4-9 seconds (likely Circle API transient outages or geographic latency spikes).
+
+**Calibrated thresholds (preliminary)**
+
+| route | `threshold_bs1_s` (= `threshold_bs2_s`) |
+|---|---|
+| arbitrum-base/cctp | 0.265779 (266 ms) |
+| arbitrum-ethereum/cctp | 0.303519 (304 ms) |
+| avalanche-ethereum/cctp | 0.211 (211 ms) |
+| base-arbitrum/cctp | 0.265059 (265 ms) |
+| base-ethereum/cctp | 0.234 (234 ms) |
+| ethereum-arbitrum/cctp | 0.475 (475 ms) |
+| ethereum-avalanche/cctp | 0.43036 (430 ms) |
+| ethereum-base/cctp | 0.447 (447 ms) |
+| ethereum-optimism/cctp | 0.45306 (453 ms) |
+| optimism-ethereum/cctp | 0.207 (207 ms) |
+
+Stored in seconds per existing schema convention (`threshold_bs1_s` units). `threshold_bs1_s = threshold_bs2_s = P97` per the same convention used in native bridge calibration (Entry #027).
+
+**Calibration method tag**
+
+`calibration_method = 'preliminary_p97_14d_circle_api_latency'` distinguishes this run from production-grade 30-day calibrations to be applied around 2026-05-20. Confidence flag set to LOW pending the re-calibration cycle.
+
+**Re-calibration schedule**
+
+Two follow-up calibrations planned on the same SQL pattern:
+
+| Date | Window | `calibration_method` | Confidence |
+|---|---|---|---|
+| ~2026-05-15 | 25 days | `production_p97_25d_circle_api_latency` | MEDIUM |
+| ~2026-05-20 | 30 days | `production_p97_30d_circle_api_latency` | HIGH |
+
+Each re-calibration overwrites the previous thresholds and updates the method tag plus confidence. The 14d preliminary is deliberately conservative and exists to enable BS1/BS2 classification immediately while production-grade calibration matures.
+
+**Live verification (post-deploy)**
+
+`SELECT bridge_id, threshold_bs1_s, calibration_method, calibrated FROM bridge_thresholds WHERE bridge_type='cctp'` returns 10 rows with `calibrated = true` and method `preliminary_p97_14d_circle_api_latency`. Edge Function `attestation/v2/panel` to be updated separately to consume these thresholds and emit BS1/BS2 classification on CCTP routes (target 2026-05-05).
+
+**Status:** ✅ Calibration thresholds written 2026-05-04 evening via transactional UPDATE on `bridge_thresholds`. Edge Function consumer update pending.
+**Confidence:** LOW (preliminary 14-day window). Will progress to MEDIUM at 25d and HIGH at 30d per the re-calibration schedule above.
+**Limitation:** Calibration uses `circle_api_latency_ms` (health probe) as a proxy for end-to-end message latency. The direct observable `attestation_latency_p90_s` requires sustained message throughput which is currently below the threshold for statistical baseline. Once message volume on CCTP routes increases (Q3 2026 RWA mainstream adoption target), a direct calibration on `attestation_latency_p90_s` may supersede or complement the current proxy approach.
+
+**Follow-up**
+
+- Edge Function `attestation/v2/panel` update: consume new CCTP thresholds, emit `state: BS1|BS2` per route.
+- Detector `stress-events` reformulation: integrate CCTP BS state as part of event severity classification.
+- 25-day re-calibration cycle: target 2026-05-15.
+- 30-day re-calibration cycle: target 2026-05-20.
+- Post-throughput-emergence calibration on direct `attestation_latency_p90_s` observable: ETA Q3 2026 with RWA mainstream CCTP adoption (USDC institutional inter-chain settlements).
+
+---
+
+## Entry #037 (2026-05-04): CCIP lane calibration deferred, empirical observation of below-baseline throughput
+
+**Type:** Statistical observation, calibration explicitly deferred
+**Surface:** `bridge_thresholds` table (10 CCIP lanes, all remain `calibrated = false`), `panel.bridges[].state` field for `bridge_type='ccip'` entries (no classification emitted, raw observables exposed)
+**Trigger:** Attempted P97/14d calibration on the only continuously-filled observable available (`last_sequence_advance_s`).
+
+---
+
+**Method and observation**
+
+CCIP lanes expose several observables in `ans_ccip_lane_signals`. Two were considered for calibration:
+
+| observable | non_null coverage | semantics |
+|---|---|---|
+| `total_latency_p90_s`, `commit_latency_p90_s`, `execute_latency_p90_s` | 0% over 14d window | filled only when actual messages transit, periods of low CCIP activity leave these NULL |
+| `last_sequence_advance_s` | 100% (20029 / 20029) | continuous time delta since last DON commit nonce increment, filled by collector independently of message transit |
+
+The first set requires sustained message throughput. The second is the time-since-last-DON-activity, which is filled continuously regardless of message volume.
+
+Distribution of `last_sequence_advance_s` by lane on the 14-day window:
+
+| lane | P50 (s) | P97 (s) | P99 (s) | max (s) | n samples |
+|---|---|---|---|---|---|
+| arbitrum-ethereum/ccip | 3903 | 9999 | 9999 | 9999 | 2003 |
+| avalanche-ethereum/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| base-ethereum/ccip | 3185 | 9999 | 9999 | 9999 | 2003 |
+| ethereum-arbitrum/ccip | 9999 | 9999 | 9999 | 9999 | 2002 |
+| ethereum-avalanche/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| ethereum-base/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| ethereum-optimism/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| ethereum-polygon/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| optimism-ethereum/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+| polygon-ethereum/ccip | 9999 | 9999 | 9999 | 9999 | 2003 |
+
+The value 9999 is the cap applied by the collector on the time-since-last-DON-activity field. Eight of ten lanes have P50 at this cap, meaning the DON has not advanced its commit nonce for at least the cap duration in more than half of the observation samples. Two lanes (`arbitrum-ethereum`, `base-ethereum`) show a P50 around 3000-3900 seconds (~50-65 minutes between commits), but their P97 still saturates at the cap.
+
+**Conclusion**
+
+The observable `last_sequence_advance_s` does not contain enough information at the upper percentile (P97) to anchor a meaningful BS1/BS2 boundary. All 10 lanes saturate at or near the collector cap. A threshold derived from this distribution would be either equal to the cap (semantically meaningless, since "above the cap" is not observable) or lower than the cap (which would mean classifying nominal cap-saturation as stress, a constant false-positive emission).
+
+This is consistent with public observations of low cross-chain message volume on Chainlink CCIP. The current throughput on the lanes monitored by Invarians is below the threshold required for production-grade statistical baseline calibration.
+
+**Decision**
+
+Calibration of CCIP lanes is explicitly deferred. The 10 lanes remain in `bridge_thresholds` as placeholders with `calibrated = false`, `threshold_bs1_s = NULL`. The Edge Function `attestation/v2/panel` will continue to expose CCIP lanes in the panel as raw observability entries (with `state: null`, `calibrated: false`, and the current observable values exposed for consumers who want raw access), but no BS1/BS2 classification is emitted.
+
+**Reserved for future activation**
+
+CCIP classification will activate when sustained throughput emerges on the lanes. Mainstream RWA cross-chain settlement adoption (BlackRock BUIDL ETH-AVAX, JPM Onyx Coin, Franklin BENJI cross-chain) is the expected trigger for sustained CCIP message volume. Estimated timeline: Q3 2026.
+
+The Invarians infrastructure (collectors, schema, calibration scripts) is ready to activate classification immediately when throughput reaches the statistical threshold. No additional engineering required, only a re-execution of the calibration pattern (P97 on `total_latency_p90_s` over a window of sufficient activity).
+
+**Status:** ❌ Calibration not committed. CCIP lanes remain in `calibrated = false` state. Decision logged here for transparency and future re-evaluation.
+**Confidence:** N/A (calibration deferred, no thresholds emitted).
+**Limitation:** Empirical observation that current CCIP throughput on the monitored lanes is below the statistical threshold for baseline calibration. This observation is itself a publishable insight into the current state of cross-chain message volume on Chainlink CCIP.
+
+**Follow-up**
+
+- Quarterly re-evaluation of CCIP throughput: monitor `last_sequence_advance_s` distribution evolution. Re-attempt calibration when distribution shows meaningful P97 below the cap (i.e., DON commit activity becomes regular enough to dominate the observation window).
+- Consider direct calibration on `total_latency_p90_s` once message volume per lane exceeds approximately 100 messages per day per direction (rough heuristic for non-NULL coverage > 50% over a 30-day window).
+- Article publishable from this observation: "CCIP throughput observability, empirical observations from a calibration attempt", documenting the methodology, the cap saturation result, and the implication for institutional adopters monitoring Chainlink CCIP for RWA settlement.
+
+---
+
+## Entry #038 (2026-05-04): Native bridge L2-to-L1 scope abandoned, value lever shifted to variable-latency bridges
+
+**Type:** Strategic scope decision, follow-up to Entries #027 (native bridge calibration committed 2026-04-22) and #036-#037 (CCTP and CCIP scope expansion).
+**Surface:** `invarians-bridge-collector` service on VPS (stopped), public narrative on `invarians-site/`, `agentnorthstar/calibration` repo positioning.
+**Trigger:** Recognition that the institutional-grade value of Invarians on optimistic-rollup native bridges (Arbitrum, Base, Optimism canonical L2-to-L1 withdrawals) is structurally limited by the protocol-immutable 7-day challenge period.
+
+---
+
+**Reasoning**
+
+Optimistic rollup native bridges (Arbitrum One, Base, Optimism, Linea, Scroll) impose a 7-day challenge period on L2-to-L1 withdrawals by design. This duration is fixed by the protocol-level fraud-proof window and is not affected by network conditions, by Invarians, or by any external observability layer. Capital initiated for L2-to-L1 withdrawal via the canonical bridge is exposed for 7 days regardless of the structural state of L1, L2, or the bridge itself at the moment of initiation.
+
+The only lever Invarians can provide on these bridges is the choice of moment of initiation (so that the 7-day exposure window starts in a verified nominal state rather than in a structural cascade). This is a marginal lever compared to bridges where latency is itself a function of network state.
+
+In contrast, variable-latency bridges (CCIP, CCTP, fast LP-based bridges such as Across or Hop) operate with baseline latencies of 5 to 30 minutes that can stretch by a factor of 4 to 8 during structural network stress. On these bridges, Invarians provides a primary lever: by deferring during stressed windows, the agent reduces actual transit duration, not just initiation timing. The value is mechanically larger and quantitatively measurable.
+
+The institutional RWA settlement workflows that adopt high-frequency cross-chain settlement (BlackRock BUIDL daily ETH-AVAX via CCIP, Circle USDC institutional via CCTP, Aave Institutional via fast bridges, Franklin BENJI daily NAV settlement) operate on variable-latency bridges. The institutional flows that operate on native 7-day bridges (Goldfinch maturity-based, Maple term loans, real estate fund T+30 redemptions) do so by design and have already accepted the 7-day exposure window as part of their settlement architecture.
+
+The Invarians value proposition aligns with the variable-latency segment.
+
+**Action taken**
+
+`invarians-bridge-collector` service stopped and disabled on the VPS at approximately 2026-05-04 21:00 UTC. The collector will not restart at boot. Alchemy compute unit consumption attributable to native bridge monitoring ceases immediately.
+
+```
+sudo systemctl stop invarians-bridge-collector
+sudo systemctl disable invarians-bridge-collector
+```
+
+CCIP and CCTP collectors continue to run unaffected (they are separate services).
+
+**Data preservation**
+
+The historical data already collected on `ans_bridge_signals` (native bridge batch posting cadence on Arbitrum-Ethereum, Base-Ethereum, Optimism-Ethereum since approximately 2026-03-17) is preserved in the database. The `bridge_thresholds` rows for native bridges (committed in Entry #027 with `calibration_method = 'event_based_p97_30d'`, P97 thresholds of 180s, 60s, 384s for ARB, BASE, OP respectively) remain in the table with `calibrated = true` and represent a historical baseline observability of native bridge batch posting cadence at the time of commitment.
+
+No data is deleted. No re-write of historical entries. No retraction of the calibration methodology committed in Entry #027.
+
+**Public narrative repositioning**
+
+The Invarians public narrative (on `invarians-site/`, `agentnorthstar.com/calibration`, and associated documentation) shifts to position CCIP, CCTP, and fast bridges as the primary scope of the value lever. Native canonical bridges are repositioned as historical observability baseline (with documented calibration as a methodological reference) rather than as the central product surface.
+
+This shift is consistent with the empirical observation that Invarians' marginal lever on protocol-immutable 7-day bridges is structurally limited, while its lever on variable-latency bridges is mechanically aligned with stress observability.
+
+**Status:** ✅ Collector stopped 2026-05-04 21:00 UTC. Historical data and Entry #027 calibration retained for reference. Narrative repositioning to be executed across `invarians-site/` pages over the following days.
+**Confidence:** High (decision based on protocol-mechanical reasoning, not on statistical uncertainty).
+**Limitation:** None on the operational side (collector stopped, no ongoing CU consumption). The narrative repositioning across public-facing pages is the remaining execution task.
+
+**Follow-up**
+
+- Edge Function `attestation/v2/panel` update: remove native bridge entries from the live panel (or expose them with `calibrated: true, deprecated: true` annotation, decision pending). Target 2026-05-05.
+- Detector `stress-events` reformulation: remove native bridge state as input dimension for event severity classification. Target 2026-05-05.
+- Public narrative refonte: pages `index.html`, `products.html`, `roadmap.html`, `cre.html`, `faq.html`, `developers.html` and others on `invarians-site/`. Target this week.
+- Update `methodology.md` (this repo) with the variable-latency vs fixed-latency bridge distinction and the rationale for scope focus.
+- Update `limitations_and_plans.md` (this repo) to reflect the abandoned native bridge scope and the variable-latency bridge focus.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

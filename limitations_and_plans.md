@@ -97,8 +97,8 @@ Historical attestations live in Supabase. They are auditable but not anchored on
 **Arbitrum τ signal uses a non-standard rule.**
 Arbitrum Nitro has `rho_s ≈ 0` structurally (gasLimit ≈ ∞ → near-zero variance in block size in nominal regime). The standard τ classifier does not work. A **2-of-2 rule on `size_ratio` and `tx_ratio`** is deployed in production and operates correctly (AGENT internal Rule 10), but this workaround is not yet documented publicly. Documentation will be added to `composite_signal_arbitrum_june2024.md` or a dedicated `chain_profile_arbitrum.md` (Q2 2026).
 
-**Bridge signal in observation phase.**
-BS1 / BS2 are described in `methodology.md §9.5` but are in **Phase 2B observation mode** (hard-coded BS1 until switchover date 2026-04-22). They are not yet part of the classified production signal. Sections describing Bridge and ω behaviors should be read as specifications, not validated measurements.
+**Bridge classification scope: variable-latency only.**
+The bridge layer of the panel actively classifies variable-latency bridges (CCIP, CCTP, fast LP-based bridges) where Invarians provides a measurable value lever to autonomous agents. Native canonical L2-to-L1 bridges remain observable in the underlying database but are not classified in the active panel. See `methodology.md §13.1` for scope details.
 
 **Solana π not yet calibrated.**
 BigQuery Solana Blocks does not contain `transaction_count`. π calibration is pending until mid-June 2026 when the sensor data becomes usable. Current production π on SOL is `confidence: LOW` (P90 proxy).
@@ -106,8 +106,11 @@ BigQuery Solana Blocks does not contain `transaction_count`. π calibration is p
 **L2 signals differ from L1 by design.**
 Rollups with centralized sequencers (Arbitrum, Base, Optimism) cannot reproduce the τ signal that works on L1s with decentralized consensus. This is correct and documented in `methodology.md §7.4`. The L2 framework (π, μ, σ) is separate from the L1 framework (S/D).
 
-**Native L1 to L2 deposit lane not instrumented.**
-Native canonical bridges (Arbitrum, Base, Optimism to Ethereum) measure the L2 to L1 batch posting cadence (`last_batch_age_seconds`), which is the security-relevant direction for withdrawal validity and rollup finality. The reverse direction (L1 to L2 deposit lane: events such as `MessageDelivered` on L1 Inbox, `RetryableTicketCreated` or `RelayedMessage` on L2) is not collected today. This is a deliberate scoping choice: institutional RWA settlement flows move stablecoins via CCTP and tokens via CCIP, both of which are bidirectional and instrumented in both directions on the active scope (5 EVM corridors per topology). A native L1 to L2 collector is on the v2.1 roadmap (Q3 to Q4 2026) and will be activated only if observed agent demand justifies the additional surface area.
+**CCTP preliminary calibration uses a health-probe proxy, not direct message latency.**
+CCTP routes are calibrated on `circle_api_latency_ms` (Circle attestation API health-check, 99.97% non-null coverage on a 14-day window) per Entry #036 (2026-05-04). The direct message latency observable `attestation_latency_p90_s` is filled only when actual messages transit and is currently NULL across the 14-day window (low CCTP throughput). The health-probe approach is an upstream proxy for attestation pipeline responsiveness. Once CCTP throughput grows sufficiently (Q3 2026 RWA mainstream adoption target), direct calibration on `attestation_latency_p90_s` may supersede or complement the current proxy. Confidence flag set to LOW until the production-grade 30-day window is reached (target 2026-05-20).
+
+**CCIP classification deferred until sustained throughput emerges.**
+CCIP lanes calibration was attempted at the preliminary stage on 2026-05-04 (Entry #037) and explicitly deferred. The continuously-filled observable `last_sequence_advance_s` saturates at the collector cap on 8 of 10 lanes, indicating throughput on the monitored lanes is below the threshold for statistical baseline. CCIP lanes are exposed in the panel as raw observability entries (`state: null`, `calibrated: false`, `status: "UNCALIBRATED"`), with their raw signals visible to consumers. Classification will activate when sustained throughput emerges, expected with mainstream RWA cross-chain settlement adoption (BlackRock BUIDL, JPM Onyx, Franklin BENJI on CCIP), estimated Q3 2026.
 
 **Drift Signal `shift_available: false` per metric until 30-day EMA stabilizes.**
 For each classifying observable freshly added to the panel (initially `beacon_participation` on Ethereum and `sequencer_publish_latency` on Arbitrum, Base, Optimism), the long-term EMA needs about 30 days of production samples before `shift` and `shift_delta` become statistically meaningful. The panel exposes the raw value (ratio or seconds) in the meantime, plus the explicit `shift_available: false` flag so that a consumer cannot mistake an absent signal for a stable one. Activation date for the v2.0 cohort: end-May 2026.
@@ -196,7 +199,10 @@ Internal operating procedure when a per-chain signal drifts out of calibration:
 This protocol is currently exercised manually by operators. It will be automated by the AgentNorthStar Calibration Agent (MCP, May 2026).
 
 **Multi-RPC collector architecture.**
-The collector that feeds the invariant computation does not rely on a single RPC per chain. Per-chain diversity is operational today: multiple RPC endpoints per network with failover, source-level agreement checks on block height, and rejection of inconsistent responses. This is what the REST API at the public attestation endpoint (`/functions/v1/attestation/`) has been serving since before this document was published. Public architectural documentation scheduled Q3 2026 alongside the MCP server release notes.
+The collector that feeds the invariant computation does not rely on a single RPC per chain. Per-chain diversity is operational today: multiple RPC endpoints per network with failover, source-level agreement checks on block height, and rejection of inconsistent responses. This is what the REST API at the public attestation endpoint (`https://api.invarians.com/v2/`) has been serving since before this document was published. Public architectural documentation scheduled Q3 2026 alongside the MCP server release notes.
+
+**Variable-latency bridge classification active in the panel (CCTP preliminary, CCIP raw).**
+CCTP routes (10) carry a calibrated `BS1` / `BS2` state on the panel since 2026-05-04, with confidence flag `LOW` pending the production-grade 30-day window (Entry #036). CCIP lanes (10) are exposed in the panel as raw observability entries (`state: null`, `calibrated: false`, `status: "UNCALIBRATED"`) until sustained throughput emerges (Entry #037). The `BS1` / `BS2` nomenclature is uniform across all variable-latency bridge types; the `bridge_type` field distinguishes the underlying protocol (`ccip`, `cctp`, future fast bridges). Edge Function `attestation/v2/panel` and SDK Python `invarians >= 0.6.x` reflect this scope.
 
 **MCP server and A2A discovery — schema published.**
 The MCP server at [`agentic.invarians.com`](https://agentic.invarians.com) is deployed with stable discovery endpoints:

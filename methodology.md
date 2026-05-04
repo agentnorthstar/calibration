@@ -8,7 +8,7 @@ audience: [ai-agents, developers, researchers]
 
 # Invarians — Structural measurement method for blockchains
 
-> **Status:** v0.5 — ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned — see note §10.3). Section 13 added: uniform P97/30d calibration for bridges, native bridges Arbitrum/Base/Optimism calibrated 2026-04-22 (cf. `calibration_log.md` `#027`). Complete M1 script implementation planned for v0.6.
+> **Status:** v0.6 — ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned — see note §10.3). Section 13 reframed: variable-latency bridge scope (CCIP, CCTP, fast bridges) replaces native canonical L2-to-L1 scope; CCTP routes calibrated preliminary P97/14d on 2026-05-04 (cf. `calibration_log.md` `#036`); CCIP calibration deferred pending sustained throughput (cf. `#037`); native bridge scope retired (cf. `#038`). Complete M1 script implementation planned for v0.7.
 
 ---
 
@@ -1109,51 +1109,79 @@ Every item in `/v1/attestation/panel` belongs to category 12.1 or 12.2. Category
 
 ---
 
-## 13. Bridge thresholds, uniform P97/30d calibration
+## 13. Bridge thresholds, scope and uniform P97 calibration
 
-Bridge thresholds in the panel are calibrated by a single statistical method, applied identically to native bridges, CCIP lanes and CCTP routes. Section 13.1 states the method, 13.2 the guard rails, 13.3 the calibration cycle, 13.4 the limitations.
+The bridge layer of the Invarians panel reflects a deliberate scope choice driven by where Invarians can provide a measurable value lever to autonomous agents executing cross-chain settlement workflows. Section 13.1 establishes the variable-latency vs fixed-latency distinction and the resulting active scope. Section 13.2 states the calibration method. Section 13.3 the guard rails. Section 13.4 the calibration lifecycle. Section 13.5 the limitations.
 
-### 13.1 Method
+### 13.1 Scope
 
-For every bridge `id` in `panel.bridges[]`, the threshold `threshold_bs1_s` is set at the 97th percentile of its primary latency signal, computed over a rolling 30-day window of clean samples:
+The bridge layer of the Invarians panel actively classifies **variable-latency bridges** where transit duration is observable and a function of network state. These are CCIP lanes (Chainlink DON consensus), CCTP routes (Circle attestation infrastructure), and fast LP-based bridges (Across, Hop). On these surfaces, an Invarians-aware agent that defers during stressed windows reduces actual transit duration. The value lever is mechanically aligned with stress observability and quantitatively measurable.
 
-- Native bridges (`*/native`) read `last_batch_age_seconds` from `ans_bridge_signals`.
-- CCIP lanes (`*/ccip`) read `last_sequence_advance_s` from `ans_ccip_lane_signals`.
-- CCTP routes (`*/cctp`) read `attestation_latency_p90_s` from `ans_cctp_route_signals`.
+These are also the bridges institutional cross-chain settlement workflows depend on for high-frequency operations: BlackRock BUIDL daily ETH-to-AVAX via CCIP, Circle USDC institutional via CCTP, Aave Institutional via fast bridges, Franklin BENJI daily NAV settlement.
 
-Above the threshold the bridge is reported with its degraded state (`BS2` for native, `CS2` for CCIP, `TS2` for CCTP). At or below it, the nominal state (`BS1`, `CS1`, `TS1`).
+Native canonical L2-to-L1 bridges (optimistic rollups) operate on protocol-defined timeframes that no observability layer can affect, and are therefore not part of the active classification scope. Their batch posting cadence remains observable in the underlying database as historical reference.
 
-The same statistical recipe (P97 over 30 days of clean samples) is applied to every bridge. Differences between final thresholds reflect real per-bridge dynamics (sequencer cadence for native rollups, commit phase for CCIP, attestation pipeline for CCTP), not method choice. Each calibrated threshold therefore represents the same statistical position (97th percentile) within its own native distribution, comparable across bridges in that sense.
+### 13.2 Method
 
-### 13.2 Guard rails (transactional)
+For every variable-latency bridge `id` in `panel.bridges[]`, the threshold `threshold_bs1_s` is set at the 97th percentile of its primary latency signal, computed over a rolling window of clean samples. The classification is unified across all bridge types: above the threshold the bridge state is `BS2` (degraded), at or below it the state is `BS1` (nominal). The `bridge_type` field on each entry distinguishes the underlying protocol (`ccip`, `cctp`, future fast bridges).
+
+The primary signal selected for each bridge type reflects the observable that is continuously measurable on that protocol:
+
+- **CCIP lanes** (`*/ccip`) — the only continuously-filled observable in `ans_ccip_lane_signals` is `last_sequence_advance_s` (time delta since last DON commit nonce increment). The latency-of-actual-message observables (`commit_latency_p90_s`, `execute_latency_p90_s`, `total_latency_p90_s`) are filled only when a message transits, leaving them NULL during periods of low CCIP activity. Calibration on `last_sequence_advance_s` is the operational choice.
+
+- **CCTP routes** (`*/cctp`) — the continuously-filled observable in `ans_cctp_route_signals` is `circle_api_latency_ms` (Circle attestation API health-check latency, 99.97% non-null coverage). The direct message latency `attestation_latency_p90_s` requires sustained throughput, which is currently below the threshold for statistical baseline. Calibration on `circle_api_latency_ms` (converted to seconds for storage uniformity) is the operational choice and serves as an upstream proxy for end-to-end attestation pipeline health.
+
+The same statistical recipe (P97 over a window of clean samples) is applied to every variable-latency bridge. Differences between final thresholds reflect real per-route dynamics (DON commit phase for CCIP, Circle API responsiveness for CCTP), not method choice.
+
+### 13.3 Guard rails (transactional)
 
 Each calibration run is a single SQL transaction. Three rails are enforced per bridge:
 
 - `p97_s IS NULL` triggers ROLLBACK.
 - `n_samples < 1000` triggers ROLLBACK.
-- `days_span < 25` triggers ROLLBACK.
+- `days_span < threshold_min` triggers ROLLBACK, where `threshold_min` is set per the calibration cycle stage (see 13.4).
 
 Any single bridge failing any single rail aborts the whole transaction. Bridges in the same calibration cohort always share an observation window of comparable size and span. The constraint protects the panel from a partial commit where some bridges would be calibrated on a recent window and others on a stale one.
 
-### 13.3 Calibration cycle
+### 13.4 Calibration lifecycle: preliminary, intermediate, production
 
-A bridge enters `calibrated:false / status:"UNCALIBRATED"` the moment it is exposed in the panel. It transitions to `calibrated:true / status:"OK"` on the first successful run of the calibration script after 30 days of clean samples have accumulated. After that, recalibration is event-driven (e.g. a documented protocol upgrade that shifts the underlying distribution) rather than periodic. Past entries remain immutable in `calibration_log.md`.
+To enable bridge state classification before the full 30-day production-grade window has accumulated, the calibration cycle progresses through three confidence stages. The `calibration_method` and `confidence` fields exposed on each `bridge_thresholds` row track the current stage explicitly.
 
-Native bridges Arbitrum, Base and Optimism reached the calibrated state on 2026-04-22 (`calibration_log.md` `#027`). CCIP lanes and CCTP routes started accumulating samples on 2026-04-20 12:25 UTC. Earliest CCIP/CCTP calibration is 2026-05-20.
+| Stage | Window | Guard rail | `calibration_method` tag | Confidence |
+|---|---|---|---|---|
+| Preliminary | 14 days | `days_span >= 13.5` | `preliminary_p97_14d_<observable>` | LOW |
+| Intermediate | 25 days | `days_span >= 25` | `production_p97_25d_<observable>` | MEDIUM |
+| Production | 30 days | `days_span >= 30` | `production_p97_30d_<observable>` | HIGH |
 
-### 13.4 Limitations
+Each subsequent run overwrites the previous thresholds and updates the method tag plus confidence. The preliminary stage is deliberately conservative and exists to enable BS1/BS2 classification immediately while the production-grade calibration matures.
 
-The P97/30d threshold is a statistical positioning, not an event-based one. It does not by itself prove that a value above the threshold corresponds to a real congestion or to an RMN curse incident. Event-based validation (cross-checking calibrated thresholds against documented historical incidents, similarly to the L2 protocol in §9.3b) is a follow-up. Until event-based validation is published, bridge thresholds are stated as MEDIUM confidence statistical: the method is reproducible, the resulting state is timestamp-falsifiable against chain data, but the FPR/TPR against an incident ground truth is not yet established for bridges.
+CCTP routes were calibrated at the preliminary stage on 2026-05-04 (`calibration_log.md` `#036`). The intermediate calibration is targeted at 2026-05-15, the production calibration at 2026-05-20.
+
+CCIP lanes calibration was attempted at the preliminary stage on 2026-05-04 and explicitly deferred (`calibration_log.md` `#037`). Empirical observation: throughput on the 10 monitored lanes is currently below the statistical threshold for baseline, with `last_sequence_advance_s` saturating at the collector cap on 8 of 10 lanes. CCIP classification is reserved for activation when sustained throughput emerges, expected with mainstream RWA cross-chain settlement adoption (estimated Q3 2026 timeframe).
+
+After the production stage is reached on a bridge, recalibration is event-driven (a documented protocol upgrade that shifts the underlying distribution) rather than periodic. Past entries remain immutable in `calibration_log.md`.
+
+### 13.5 Limitations
+
+The P97 threshold is a statistical positioning, not an event-based one. It does not by itself prove that a value above the threshold corresponds to a real congestion or to a service degradation incident on the upstream protocol. Event-based validation (cross-checking calibrated thresholds against documented historical incidents, similarly to the L2 protocol in §9.3b) is a follow-up. Until event-based validation is published, bridge thresholds are stated at the confidence level dictated by their calibration stage (LOW for 14d, MEDIUM for 25d, HIGH for 30d): the method is reproducible, the resulting state is timestamp-falsifiable against chain and Circle API data, but the FPR/TPR against an incident ground truth is not yet established for variable-latency bridges.
+
+The CCTP preliminary calibration on `circle_api_latency_ms` uses a health-check probe as a proxy for end-to-end attestation pipeline health, not the direct message latency observable. Once message volume on CCTP routes increases sufficiently for `attestation_latency_p90_s` to be continuously populated, a direct calibration on the message latency observable may supersede or complement the current proxy approach.
+
+The CCIP deferred calibration is itself a publishable empirical observation about current Chainlink CCIP throughput levels on the 10 monitored lanes. The decision to defer rather than commit a saturation-cap threshold is a methodological choice in favor of explicit unclassified state rather than a meaningless threshold near the cap.
 
 ---
 
-*Version 0.5 — Draft — 27 April 2026*
+*Version 0.6 — Draft — 4 May 2026*
 *v0.3: architectural pivot L1 cause / L2 response, introduction of the μ layer (composition),*
 *section 7.4 causal grid, section 9.2b μ distinct from π, section 9.4 target (π,μ,σ) classifier*
 *v0.4: integration of the bridge as transmission layer — causal framework L1→Bridge→L2,*
 *section 9.5 operational BS* (Phase 2) + ω inter-layer flow (Phase 3, prospective),*
 *causal grid extended with Bridge column, section 10 planned phases 2+3*
 *v0.5: section 13 added (uniform P97/30d bridge calibration), native bridges calibrated*
-*2026-04-22 (cf. `calibration_log.md` `#027`), L2 panel GRANT fix 2026-04-27 (cf. `#028`),*
-*footer date harmonized with frontmatter*
+*2026-04-22 (cf. `calibration_log.md` `#027`), L2 panel GRANT fix 2026-04-27 (cf. `#028`)*
+*v0.6: section 13 reframed (variable-latency vs fixed-latency bridge scope), native bridge*
+*scope retired from active panel (cf. `calibration_log.md` `#038`), CCTP preliminary*
+*calibration on `circle_api_latency_ms` (cf. `#036`), CCIP calibration deferred pending*
+*sustained throughput (cf. `#037`), unified BS1/BS2 nomenclature across all variable-latency*
+*bridges, three-stage calibration lifecycle (LOW 14d / MEDIUM 25d / HIGH 30d) introduced*
 *Effective publication after minimum backtest validation on 2 chains*
