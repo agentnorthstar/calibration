@@ -1820,7 +1820,7 @@ Calibration of CCIP lanes is explicitly deferred. The 10 lanes remain in `bridge
 
 **Reserved for future activation**
 
-CCIP classification will activate when sustained throughput emerges on the lanes. Mainstream RWA cross-chain settlement adoption (BlackRock BUIDL ETH-AVAX, JPM Onyx Coin, Franklin BENJI cross-chain) is the expected trigger for sustained CCIP message volume. Estimated timeline: Q3 2026.
+CCIP classification will activate when sustained throughput emerges on the lanes. Sustained CCIP message volume is expected to grow as institutional RWA cross-chain settlement workflows adopt variable-latency bridges. Estimated timeline: Q3 2026, contingent on observed throughput growth on the lanes.
 
 The Invarians infrastructure (collectors, schema, calibration scripts) is ready to activate classification immediately when throughput reaches the statistical threshold. No additional engineering required, only a re-execution of the calibration pattern (P97 on `total_latency_p90_s` over a window of sufficient activity).
 
@@ -1852,7 +1852,7 @@ The only lever Invarians can provide on these bridges is the choice of moment of
 
 In contrast, variable-latency bridges (CCIP, CCTP, fast LP-based bridges such as Across or Hop) operate with baseline latencies of 5 to 30 minutes that can stretch by a factor of 4 to 8 during structural network stress. On these bridges, Invarians provides a primary lever: by deferring during stressed windows, the agent reduces actual transit duration, not just initiation timing. The value is mechanically larger and quantitatively measurable.
 
-The institutional RWA settlement workflows that adopt high-frequency cross-chain settlement (BlackRock BUIDL daily ETH-AVAX via CCIP, Circle USDC institutional via CCTP, Aave Institutional via fast bridges, Franklin BENJI daily NAV settlement) operate on variable-latency bridges. The institutional flows that operate on native 7-day bridges (Goldfinch maturity-based, Maple term loans, real estate fund T+30 redemptions) do so by design and have already accepted the 7-day exposure window as part of their settlement architecture.
+Institutional RWA settlement workflows that adopt high-frequency cross-chain settlement operate on variable-latency bridges (CCIP for tokenized fund transfers, CCTP for stablecoin rebalancing, fast LP-based bridges for institutional DeFi flows). Institutional flows that operate on native 7-day bridges (maturity-based credit pools, term loan vaults, real estate fund T+30 redemptions) do so by design and have already accepted the 7-day exposure window as part of their settlement architecture.
 
 The Invarians value proposition aligns with the variable-latency segment.
 

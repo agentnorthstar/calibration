@@ -1117,7 +1117,7 @@ The bridge layer of the Invarians panel reflects a deliberate scope choice drive
 
 The bridge layer of the Invarians panel actively classifies **variable-latency bridges** where transit duration is observable and a function of network state. These are CCIP lanes (Chainlink DON consensus), CCTP routes (Circle attestation infrastructure), and fast LP-based bridges (Across, Hop). On these surfaces, an Invarians-aware agent that defers during stressed windows reduces actual transit duration. The value lever is mechanically aligned with stress observability and quantitatively measurable.
 
-These are also the bridges institutional cross-chain settlement workflows depend on for high-frequency operations: BlackRock BUIDL daily ETH-to-AVAX via CCIP, Circle USDC institutional via CCTP, Aave Institutional via fast bridges, Franklin BENJI daily NAV settlement.
+These are also the bridges institutional cross-chain settlement workflows depend on for high-frequency operations: tokenized fund daily rebalancing via CCIP, USDC institutional flows via CCTP, institutional DeFi protocols via fast LP-based bridges, and tokenized money market daily NAV settlement.
 
 Native canonical L2-to-L1 bridges (optimistic rollups) operate on protocol-defined timeframes that no observability layer can affect, and are therefore not part of the active classification scope. Their batch posting cadence remains observable in the underlying database as historical reference.
 
