@@ -57,7 +57,7 @@ The fast ratio detects stress episodes. The slow ratio measures structural drift
 
 ### 2.3 State classification
 
-#### Phase α — legacy 4-state (one-sided thresholds, default)
+#### Legacy four-state classification (one-sided thresholds, default)
 
 ```
 τ (structure):
@@ -79,7 +79,7 @@ Composite states:
 economic signature. No fee monitor, no gas tracker detects it. This is Invarians'
 fundamental competitive differentiator.
 
-#### Phase β — bilateral 12-state (signed thresholds, since 2026-04-29)
+#### Extended classification — signed 12-state codes (since 2026-04-29)
 
 The original four-state grid is one-sided: it only captures deviations *above* the nominal
 window. But several real-world signatures fall *below* nominal: cascading liquidations
@@ -88,7 +88,7 @@ drops), censorship of a transaction class (selective tx exclusion), agentic bund
 (size up, tx down). The rsETH cascade of 2026-04-18 was the canonical case where one-sided
 thresholds missed the asymmetric signature on Ethereum.
 
-The bilateral grid extends the classification to lower bounds:
+The extended grid adds signed lower bounds:
 
 ```
 τ (structure, signed):
@@ -115,25 +115,25 @@ cascades on Aave or Compound, MEV searcher dominance, or stablecoin depeg arbitr
 
 #### Activation per chain
 
-Phase β activates per chain via the `low_thresholds_calibrated` flag on `l1_thresholds` and
+Extended classification activates per chain via the `low_thresholds_calibrated` flag on `l1_thresholds` and
 `l2_thresholds` tables. When the flag is `false` (or any low threshold is `NULL`), the view
-falls back to phase α legacy. When `true` and all lows populated, the view emits the 12-state
-extended codes.
+falls back to the legacy four-state classification. When `true` and all lows populated, the view emits the 12-state
+signed codes.
 
 State as of 2026-04-29:
-- **L1 phase β active**: ETH (P2 statistical, FPR ~2%), POL (P5 statistical, FPR ~5%)
-- **L1 phase α only**: SOL (pi calibration scheduled July 2026), AVAX (no published backtest)
-- **L2 phase β active**: BASE (P2), OP (P2)
-- **L2 phase α only**: ARB (sigma_ratio structurally degenerate on Arbitrum Nitro)
+- **L1 extended classification active**: ETH (P2 statistical, FPR ~2%), POL (P5 statistical, FPR ~5%)
+- **L1 legacy four-state only**: SOL (pi calibration scheduled July 2026), AVAX (no published backtest)
+- **L2 extended classification active**: BASE (P2), OP (P2)
+- **L2 legacy four-state only**: ARB (sigma_ratio structurally degenerate on Arbitrum Nitro)
 
 #### Note on L2 demand axis
 
 > ⚠️ This classification (SxDx) was originally defined for **L1 multi-dim demand** (sigma + size + tx).
 > On L2, τ is dead by design (section 7.1) — the S2Dx classification was extended to L2 via
 > single-dim demand on sigma_ratio only. As a consequence, `D2±` cannot arise naturally on L2
-> (a single variable cannot be simultaneously above and below). L2 phase β emits 9 codes,
+> (a single variable cannot be simultaneously above and below). L2 extended classification emits 9 codes,
 > not 12. ARB additionally has sigma_ratio frozen at 1.0 by Nitro design, so any sigma-based
-> threshold is degenerate. A multi-dim demand workaround for ARB (size+tx based, AGENT internal
+> threshold is degenerate. A multi-dim demand workaround for ARB (size+tx based, internal
 > Rule 10) is documented in `chain_profile_arbitrum.md` (planned Q3 2026).
 
 ---

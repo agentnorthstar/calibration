@@ -548,7 +548,7 @@ Threshold_s2=1.04 is the minimum required to detect the Heimdall/Bor Incident (s
 **Trigger:** Implementation of `m1_eth.py` and `m1_pol.py` (formula §10.1) revealed that M1 values in prior entries (#008, #009, #017) were session manual estimates, not formula outputs.
 
 **Findings:**
-- ETH M1 = **5.07** ✅ — confirmed by `m1_eth.py` · formula validated bilaterally (The Merge max=1.1548, p50=0.9993, bruit=0.0307)
+- ETH M1 = **5.07** ✅ — confirmed by `m1_eth.py` · formula validated symmetrically (The Merge max=1.1548, p50=0.9993, bruit=0.0307)
 - POL M1 = **7.37** (Entry #017) — session manual estimate, not reproduced by formula v0.1
 - POL formula-v0.1 outputs (via `m1_pol.py`):
   - τ (rhythm_ratio) · best event: Reorg Storm → **M1 = 10.66**
@@ -1183,11 +1183,11 @@ Single source of truth. No TS constant, no inline CTE values. Drift between code
 
 ---
 
-## Entry #030 (2026-04-29 PM): Bilateral regime codes — schema deployed (phase β inactive)
+## Entry #030 (2026-04-29 PM): Signed regime codes — schema deployed (extended classification inactive)
 
 **Type:** Architecture extension, schema-only (no calibration value applied)
 **Scope:** Calibration tables `l1_thresholds` + `l2_thresholds`, classification views `v_l1_regimes` + `v_l2_regimes`, Edge Function `Regime` type, SDK Python type
-**Trigger:** Strategic discussion during the rsETH 2026-04-18 post-mortem on whether divergences should be classified bilaterally (positive AND negative) instead of one-sided as today. The cascade signature on Ethereum (size_ratio above nominal × tx_ratio below nominal at 14h UTC) revealed that one-sided thresholds miss asymmetric agentic concentration patterns. Two paths considered: (A) wait for calibration before any deployment, (B) deploy the schema immediately with conditional logic so future calibration is a single UPDATE. Path B chosen to remove the schema as a future blocker.
+**Trigger:** Strategic discussion during the rsETH 2026-04-18 post-mortem on whether divergences should be classified with signed thresholds (positive AND negative) instead of one-sided as today. The cascade signature on Ethereum (size_ratio above nominal × tx_ratio below nominal at 14h UTC) revealed that one-sided thresholds miss asymmetric agentic concentration patterns. Two paths considered: (A) wait for calibration before any deployment, (B) deploy the schema immediately with conditional logic so future calibration is a single UPDATE. Path B chosen to remove the schema as a future blocker.
 
 ---
 
@@ -1204,7 +1204,7 @@ None of these patterns trigger a regime change in the current model.
 
 **Architectural decision**
 
-Add the schema for bilateral codes immediately, but gate emission behind a per-chain `low_thresholds_calibrated` boolean flag, default false. The view emits the legacy 4-state codes as long as the flag is false on a chain (or any low threshold is NULL). The view emits extended 12-state codes once the flag is true and all low thresholds are populated.
+Add the schema for the signed codes immediately, but gate emission behind a per-chain `low_thresholds_calibrated` boolean flag, default false. The view emits the legacy 4-state codes as long as the flag is false on a chain (or any low threshold is NULL). The view emits extended 12-state codes once the flag is true and all low thresholds are populated.
 
 This decouples the schema decision from the calibration work:
 - Schema lands in the same release window (zero behavioral change, zero risk)
@@ -1221,19 +1221,19 @@ B. Postgres schema extension on `l2_thresholds`:
 - New columns: `rhythm_threshold_low`, `sigma_threshold_low`, `low_thresholds_calibrated boolean DEFAULT false`
 - New CHECK constraint `chk_l2_low_bounds`
 
-C. View `v_l1_regimes` extended with conditional CASE WHEN. Outer branch on `low_thresholds_calibrated` and NULL-safety of all low values. Phase α branch identical to v1.1.0. Phase β branch concatenates struct_part || demand_part:
+C. View `v_l1_regimes` extended with conditional CASE WHEN. Outer branch on `low_thresholds_calibrated` and NULL-safety of all low values. Legacy four-state branch identical to v1.1.0. Extended classification branch concatenates struct_part || demand_part:
   - struct_part: `S2+` if rhythm > rhythm_p90, `S2-` if rhythm < rhythm_p10, else `S1`
   - demand_part: `D2±` if any-above and any-below, `D2+` if any-above only, `D2-` if any-below only, else `D1`
 
-D. View `v_l2_regimes` extended similarly. L2 single-dim demand (sigma_ratio only) cannot produce D2±, so phase β L2 emits 9 codes (no `S1D2±`, `S2+D2±`, `S2-D2±`).
+D. View `v_l2_regimes` extended similarly. L2 single-dim demand (sigma_ratio only) cannot produce D2±, so extended classification L2 emits 9 codes (no `S1D2±`, `S2+D2±`, `S2-D2±`).
 
 E. Edge Function `attestation/index.ts`: `Regime` type extended to 15 string literals, `L2Regime` type extended to 12. No version bump (additive type).
 
 F. SDK Python `invarians`: `Regime` Literal extended with the 15 values. Bumped to **0.3.1** and published on PyPI.
 
-G. Roadmap updated: Q3 2026 entry now lists bilateral regime activation alongside Solana / Avalanche calibration completion.
+G. Roadmap updated: Q3 2026 entry now lists signed regime code activation alongside Solana / Avalanche calibration completion.
 
-**Phase β activation pre-requisites (calibration work, not part of this entry)**
+**Extended classification activation pre-requisites (calibration work, not part of this entry)**
 
 Per chain, calibration of the four low bounds (or three for L2) must be derived from event-based backtests on documented incidents. Reference incidents identified for the calibration exercise:
 
@@ -1253,11 +1253,11 @@ Effort estimate: ~3-4 weeks of BigQuery extraction + TPR/FPR validation per chai
 
 Per `limitations_and_plans.md §2.6`, calibration changes during the Labs baseline phase (started 2026-03-30) require explicit `baseline_impact: yes|no` flag. This entry: **baseline_impact: no** because no chain has `low_thresholds_calibrated=true` at activation. The schema landing is invisible to Labs aggregations. Future per-chain activations will each be logged with `baseline_impact: yes` for that chain only.
 
-**Status:** ✅ Schema deployed 2026-04-29. All 7 chains (4 L1 + 3 L2) have `low_thresholds_calibrated=false`. Panel API emits legacy 4-state codes unchanged. Migration SQL persisted as `oracle-repo/supabase/migration_l1_l2_bilateral_phase_beta.sql`.
+**Status:** ✅ Schema deployed 2026-04-29. All 7 chains (4 L1 + 3 L2) have `low_thresholds_calibrated=false`. Panel API emits legacy 4-state codes unchanged. Migration SQL persisted in the oracle repo under `supabase/` (extended-classification schema migration, 2026-04-29).
 
 **Backward compatibility note**
 
-When phase β activates per chain, that chain emits new signed codes (e.g. `S1D2+` instead of `S1D2`). Clients hardcoding 4-state regex match should be updated:
+When extended classification activates per chain, that chain emits new signed codes (e.g. `S1D2+` instead of `S1D2`). Clients hardcoding 4-state regex match should be updated:
 - Python SDK 0.3.1+ types include the 15 values via `Literal`
 - Generic clients should match prefix `S{1,2}{+,-,}D{1,2}{+,-,±,}` rather than the 4 literals
 
@@ -1265,14 +1265,14 @@ Activation announcement will be made in advance per the v1.x API versioning poli
 
 **Follow-up**
 
-- Phase β calibration backtests (Q3 2026)
+- Extended classification calibration backtests (Q3 2026)
 - Per-chain activation announcements with 30-day notice
 - Site documentation update (glossary, products, patterns, foundations) coordinated with first chain activation
 - Edge Function version bump to 1.2.0 if/when activation logic ever needs runtime tuning
 
 ---
 
-## Entry #031 (2026-04-29 PM): Bilateral regime codes — phase β activated on ETH, POL, BASE, OP (statistical, provisional)
+## Entry #031 (2026-04-29 PM): Signed regime codes — extended classification activated on ETH, POL, BASE, OP (statistical, provisional)
 
 **Type:** Calibration activation (statistical, no event-based validation)
 **Scope:** L1 ethereum, L1 polygon, L2 base, L2 optimism. SOL, AVAX, ARB explicitly excluded with documented reasons.
@@ -1316,13 +1316,13 @@ D. **L2 optimism** — P2 cutoff statistical
 
 **What was explicitly NOT activated**
 
-- **L1 solana**: full pi calibration scheduled July 2026 (sensor data pending). Activating now with partial bilateral would collide with that work.
+- **L1 solana**: full pi calibration scheduled July 2026 (sensor data pending). Activating now with partial signed thresholds would collide with that work.
 - **L1 avalanche**: no BigQuery extract available, no calibration scheduled before July 2026.
 - **L2 arbitrum**: sigma_ratio is structurally degenerate on Arbitrum Nitro (gasLimit ≈ ∞ → variance = 0 over 653 windows, min=max=1.0). Setting sigma_threshold_low ≈ 1.0 produces a threshold that can never trigger. Multi-dim demand workaround (size+tx based, AGENT internal Rule 10) deferred to Q3 2026 chain_profile_arbitrum.md.
 
 **Live verification (2026-04-29 17:00 UTC)**
 
-Panel API spot-check returned bilateral codes for the first time in production:
+Panel API spot-check returned signed codes for the first time in production:
 ```json
 {
   "version": "1.1.0",
@@ -1337,7 +1337,7 @@ Panel API spot-check returned bilateral codes for the first time in production:
 }
 ```
 
-BASE and OP emitted `S1D2+` (demand elevated, direction explicit) — the very first phase β codes through the production stack: Postgres view → Edge Function → signed panel JSON. ETH and ARB stayed in legacy 4-state codes (ETH because conditions are nominal at 17:00 UTC, ARB because phase β not activated).
+BASE and OP emitted `S1D2+` (demand elevated, direction explicit) — the very first extended classification codes through the production stack: Postgres view → Edge Function → signed panel JSON. ETH and ARB stayed in legacy 4-state codes (ETH because conditions are nominal at 17:00 UTC, ARB because extended classification not activated).
 
 **FPR caveat (explicit)**
 
@@ -1362,22 +1362,22 @@ Python SDK 0.3.1+ types include all 15 values via `Literal`. SDK clients on 0.3.
 - **OP**: yes (same as BASE).
 - **SOL/AVAX/ARB**: no (unchanged).
 
-**Status:** ✅ Deployed 2026-04-29. Migration SQL `migration_l1_l2_bilateral_phase_beta.sql` applied. Calibration UPDATEs applied via direct SQL (no separate migration file). Edge Function v1.1.0 unchanged (Regime type already extended in Entry #030).
+**Status:** ✅ Deployed 2026-04-29. Migration SQL applied (extended-classification schema migration, 2026-04-29). Calibration UPDATEs applied via direct SQL (no separate migration file). Edge Function v1.1.0 unchanged (Regime type already extended in Entry #030).
 
 **Follow-up**
 
-- Q3 2026: event-based recalibration of L1 bilateral lows on documented incidents (rsETH 2026-04-18, MakerDAO Black Thursday 2020-03-12, USDC depeg 2023-03-11, Curve July 2023-07-30, ARB sequencer halt 2024-12-15, OP rare mode 2024-09, Solana outages ×4 2021-2022).
-- Q3 2026: SOL/AVAX bilateral activation alongside their pi calibration completion.
+- Q3 2026: event-based recalibration of L1 signed lower thresholds on documented incidents (rsETH 2026-04-18, MakerDAO Black Thursday 2020-03-12, USDC depeg 2023-03-11, Curve July 2023-07-30, ARB sequencer halt 2024-12-15, OP rare mode 2024-09, Solana outages ×4 2021-2022).
+- Q3 2026: SOL/AVAX extended classification activation alongside their pi calibration completion.
 - Q3 2026: ARB sigma workaround documented in `chain_profile_arbitrum.md` (multi-dim demand on size+tx).
 - Stability period for the current statistical bounds: until Q3 2026 event-based pass. Any baseline-shift artifact in Labs aggregations will be flagged at this cut-over date.
 
 ---
 
-## Entry #032 (2026-04-29): Phase β v2 — peer-reviewed audit corrections (rename, ETH P1, BASE/OP rhythm NULL, ARB multi-dim activation)
+## Entry #032 (2026-04-29): Extended classification v2 — peer-reviewed audit corrections (rename, ETH P1, BASE/OP rhythm NULL, ARB multi-dim activation)
 
 **Type:** Calibration refinement + schema cleanup (no public behavior break)
 **Scope:** L1 ethereum, L2 arbitrum, L2 base, L2 optimism. Fixes 5 sub-optimal points identified in a critical peer-reviewed audit of the Entry #031 deployment, applied within the same release window.
-**Trigger:** Independent audit of the freshly-deployed phase β state by a senior dev expert. Six issues identified, three flagged as critical, three as minor. User decision: fix all immediately rather than carry as debt.
+**Trigger:** Independent audit of the freshly-deployed extended classification state by a senior dev expert. Six issues identified, three flagged as critical, three as minor. User decision: fix all immediately rather than carry as debt.
 
 ---
 
@@ -1389,7 +1389,7 @@ Python SDK 0.3.1+ types include all 15 values via `Literal`. SDK clients on 0.3.
 
 3. **BASE/OP rhythm_threshold_low at 0.998.** The L2 rollup rhythm distribution is intrinsically tight ("τ dormant" per chain profile, max ~1.03). P2 = 0.998 means the threshold triggers when rhythm_ratio drops by less than 0.2% below 1 — sub-percent fluctuations, not operational signal.
 
-4. **ARB classification operationally degenerate.** Phase α: rhythm > 1.15 essentially never happens (max observed ~1.03), sigma > 1.20 never happens (sigma_ratio frozen at 1.0 on Arbitrum Nitro). Phase β v1 was skipped on ARB due to sigma degeneracy. Net result: ARB always emitted S1D1 regardless of conditions. Phase β provides no signal on Arbitrum.
+4. **ARB classification operationally degenerate.** Legacy four-state: rhythm > 1.15 essentially never happens (max observed ~1.03), sigma > 1.20 never happens (sigma_ratio frozen at 1.0 on Arbitrum Nitro). Extended classification v1 was skipped on ARB due to sigma degeneracy. Net result: ARB always emitted S1D1 regardless of conditions. Extended classification provides no signal on Arbitrum.
 
 5. **Schema inconsistency L1 vs L2.** L1 used `rhythm_p10`, `sigma_demand_low`, `size_demand_low`, `tx_demand_low` (mixed naming). L2 used `rhythm_threshold_low`, `sigma_threshold_low` (consistent). To harmonize, L1 should adopt L2 convention OR L2 should adopt L1 convention. L2 was newer and cleaner — chose to align L1 to L2.
 
@@ -1399,19 +1399,19 @@ Python SDK 0.3.1+ types include all 15 values via `Literal`. SDK clients on 0.3.
 
 A. **Rename L1 column** `rhythm_p10` → `rhythm_threshold_low`. CHECK constraint reference auto-updates. View `v_l1_regimes` updated to use the new name.
 
-B. **Extend L2 schema multi-dim** with new columns `size_threshold`, `size_threshold_low`, `tx_threshold`, `tx_threshold_low`. CHECK constraint extended to enforce `_low < _high` on all four pairs (NULL allowed). View `v_l2_regimes` rewritten with multi-dim demand (sigma + size + tx) NULL-safe per axis. Phase α stays single-dim sigma legacy (backward compat).
+B. **Extend L2 schema multi-dim** with new columns `size_threshold`, `size_threshold_low`, `tx_threshold`, `tx_threshold_low`. CHECK constraint extended to enforce `_low < _high` on all four pairs (NULL allowed). View `v_l2_regimes` rewritten with multi-dim demand (sigma + size + tx) NULL-safe per axis. Legacy four-state stays single-dim sigma legacy (backward compat).
 
-C. **Rewrite views NULL-safe.** `v_l1_regimes` and `v_l2_regimes` now treat each axis low independently: `rhythm_threshold_low IS NULL` means S2- skipped on rhythm but phase β stays active via demand axes. Same for each demand axis. Phase β activation gated only by `low_thresholds_calibrated = true`, not by all-lows-non-NULL.
+C. **Rewrite views NULL-safe.** `v_l1_regimes` and `v_l2_regimes` now treat each axis low independently: `rhythm_threshold_low IS NULL` means S2- skipped on rhythm but extended classification stays active via demand axes. Same for each demand axis. Extended classification activation gated only by `low_thresholds_calibrated = true`, not by all-lows-non-NULL.
 
 D. **Recalibrate ETH from P2 → P1.** New values: rhythm_threshold_low=0.8991, sigma_demand_low=0.9171, size_demand_low=0.766, tx_demand_low=0.7682. FPR per axis ~1%, combined ~3%, closer to HIGH side 1.23% (asymmetry 2.4× instead of 5×).
 
-E. **Set BASE/OP `rhythm_threshold_low = NULL`.** Rhythm L2 distribution too tight to be operationally informative. S2- on rhythm now skipped on these chains. Phase β stays active on demand axes (sigma + size + tx).
+E. **Set BASE/OP `rhythm_threshold_low = NULL`.** Rhythm L2 distribution too tight to be operationally informative. S2- on rhythm now skipped on these chains. Extended classification stays active on demand axes (sigma + size + tx).
 
-F. **Activate ARB phase β multi-dim.** Sigma stays degenerate (sigma_threshold_low=NULL, sigma_threshold=1.20 unchanged but never triggers). Size and tx now active with P95 high / P2 low statistical bounds:
+F. **Activate ARB extended classification multi-dim.** Sigma stays degenerate (sigma_threshold_low=NULL, sigma_threshold=1.20 unchanged but never triggers). Size and tx now active with P95 high / P2 low statistical bounds:
    - size_threshold = 1.5211, size_threshold_low = 0.6551 (P95/P2 over 30d, n=653 windows)
    - tx_threshold = 1.6494, tx_threshold_low = 0.5819
 
-G. **Same multi-dim treatment on BASE and OP.** Sigma + size + tx active, all bilateral. Rhythm S2- disabled (NULL).
+G. **Same multi-dim treatment on BASE and OP.** Sigma + size + tx active, all signed (above and below). Rhythm S2- disabled (NULL).
 
 **Per-chain parameter diff vs Entry #031**
 
@@ -1437,7 +1437,7 @@ Panel API spot-check after migration:
 - L2 BASE: sigma=1.0217 (below 1.10), size=1.1368 (below 1.2665), tx=1.1824 (below 1.3307) → S1D1
 - L2 OP: sigma=1.0139 (below 1.06), size=1.2637 (below 1.306), tx=1.0866 (below 1.1912) → S1D1
 
-All chains in nominal state at the moment, but multi-dim demand bilateral classification is now alive and will emit signed codes when conditions cross.
+All chains in nominal state at the moment, but multi-dim demand signed classification is now alive and will emit signed codes when conditions cross.
 
 **baseline_impact**
 
@@ -1448,7 +1448,7 @@ All chains in nominal state at the moment, but multi-dim demand bilateral classi
 
 Labs aggregations should segment time series at this cut-over (2026-04-29 late PM) for affected chains.
 
-**Status:** ✅ Deployed 2026-04-29. Migration `oracle-repo/supabase/migration_l1_l2_phase_beta_v2_corrections.sql` applied via Supabase SQL Editor. Edge Function unchanged (Regime type already extended in Entry #030). SDK unchanged (Regime Literal already extended in 0.3.1).
+**Status:** ✅ Deployed 2026-04-29. Migration SQL applied via Supabase SQL Editor (extended-classification v2 audit corrections migration, 2026-04-29). Edge Function unchanged (Regime type already extended in Entry #030). SDK unchanged (Regime Literal already extended in 0.3.1).
 
 **Follow-up**
 
@@ -1887,7 +1887,7 @@ This shift is consistent with the empirical observation that Invarians' marginal
 
 - Edge Function `attestation/v2/panel` update: remove native bridge entries from the live panel (or expose them with `calibrated: true, deprecated: true` annotation, decision pending). Target 2026-05-05.
 - Detector `stress-events` reformulation: remove native bridge state as input dimension for event severity classification. Target 2026-05-05.
-- Public narrative refonte: pages `index.html`, `products.html`, `roadmap.html`, `cre.html`, `faq.html`, `developers.html` and others on `invarians-site/`. Target this week.
+- Public narrative refonte: pages `index.html`, `products.html`, `roadmap.html`, `cre.html`, `faq.html`, `developers.html` and others on `invarians-site/`. Target 2026-05-09.
 - Update `methodology.md` (this repo) with the variable-latency vs fixed-latency bridge distinction and the rationale for scope focus.
 - Update `limitations_and_plans.md` (this repo) to reflect the abandoned native bridge scope and the variable-latency bridge focus.
 
