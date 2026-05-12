@@ -1893,5 +1893,69 @@ This shift is consistent with the empirical observation that Invarians' marginal
 
 ---
 
+## Entry #039 (2026-05-11): CCTP per-message Circle ECDSA attestation capture deployed
+
+**Type:** Capability upgrade, follow-up to Entry #036 (CCTP preliminary P97/14d calibration on `circle_api_latency_ms`, 2026-05-04).
+**Surface:** `invarians-cctp-collector` service on VPS, `ans_cctp_message_attestations` Postgres table, Edge Function `attestation` (Supabase), Cloudflare Worker `api.invarians.com`, SDK Python `invarians 0.8.0` on PyPI.
+**Trigger:** Capability gap on CCTP signals. The aggregate flow (Entry #036) calibrated on `circle_api_latency_ms` (Circle attestation API health proxy) was acknowledged as a proxy. Direct per-message attestation latency and the Circle ECDSA signature itself were not captured, leaving the CCTP signal one verifiability layer short of full crypto-grounding.
+
+---
+
+**Reasoning**
+
+CCTP messages are attested by Circle's Iris service: each message that completes attestation receives a 65-byte ECDSA secp256k1 signature emitted by Circle's attester. The signature is independently verifiable against Circle's published attester public key, which is a verification path distinct from the Invarians HMAC envelope. Capturing this signature per message anchors CCTP route signals in a cryptographic chain of trust native to the protocol, rather than in a proxy health metric.
+
+The collector cycle (10 min) is shorter than source-chain finality on Ethereum-anchored chains (~13-19 min). A naive flow would lose any message whose Iris attestation becomes available after the cycle in which the source `DepositForBurn` was observed. A pending queue resolves this: each new burn is INSERTed into `ans_cctp_message_attestations` with `attestation_signature = NULL` and re-polled against Iris at every subsequent cycle until the signature is captured or 2 hours elapse.
+
+**Action taken**
+
+- New table `ans_cctp_message_attestations` (BYTEA `message_hash`, BYTEA `attestation_signature` nullable, BIGINT `attestation_latency_ms` nullable, TIMESTAMPTZ `first_observed_at` / `attestation_observed_at`). RLS active, service_role-only.
+- New RPC `cctp_get_attestation_by_hash(text) → jsonb` with SECURITY DEFINER, accepting hex string, decoding to BYTEA server-side.
+- Rust collector rewritten with pending-queue model: detect new `DepositForBurn`, compute `messageHash = keccak256(MessageSent.message)`, INSERT pending, then poll Iris for all pending of the route in parallel (concurrency-limited).
+- Edge Function `attestation` extended with `GET /v2/cctp/attestation/{message_hash}`. Bridge entries now expose `capability_level: per_message_attested`, `crypto.anchor: circle_ecdsa`, `crypto.verifiable_via`, and structured `metrics` derived from per-message latencies (`attestation_latency_p90_s`, `attestation_latency_p99_s`, `attestation_success_rate_1h`).
+- Cloudflare Worker `api.invarians.com` allowlist regex added for the new dynamic path.
+- SDK Python `invarians 0.8.0` ships with `client.get_cctp_attestation(message_hash)`, `BridgeMetrics`, `BridgeCrypto`, `CapabilityLevel`, and `BridgeEntry.is_crypto_anchored` property. Backward-compatible with 0.7.x.
+
+**Status:** ✅ Deployed end-to-end 2026-05-11. Confidence MEDIUM (per-message, EVM only). Solana CCTP routes (ETH ↔ SOL × 2) remain `Planned 2026-Q3` until the Solana RPC pipeline is integrated.
+**Confidence:** MEDIUM, ten EVM CCTP routes captured per message with cryptographic signature.
+**Limitation:** Polling cadence introduces an upper-bound bias on `attestation_latency_ms` of up to one cycle period (10 min). Documented in `limitations_and_plans.md §2.4`. Not a calibration defect, transparent to auditors.
+
+---
+
+## Entry #040 (2026-05-12): CCIP per-message capture deployed via messageId matching
+
+**Type:** Capability upgrade, follow-up to Entry #037 (CCIP preliminary calibration deferred 2026-05-04) and Entry #039 (symmetric CCTP per-message capture 2026-05-11).
+**Surface:** `invarians-ccip-collector` service on VPS, `ans_ccip_messages` Postgres table, Edge Function `attestation` (Supabase), Cloudflare Worker `api.invarians.com`, SDK Python `invarians 0.9.0` on PyPI.
+**Trigger:** Asymmetry between CCTP (now `per_message_attested` since Entry #039) and CCIP (still `aggregate`) was acknowledged as a known limitation. Additionally, a latent defect was confirmed: the pre-existing aggregate flow attempted to read `sequence_gap` from `topics[1]` of the `CCIPSendRequested` event, but this event has no indexed parameter; the field was `NULL` on every row for the prior three weeks.
+
+---
+
+**Reasoning**
+
+CCIP exposes a natural per-message key in both directions of a lane: each `CCIPSendRequested` event emitted by the source OnRamp carries a bytes32 `messageId` at inner slot 12 of its ABI v1.2 tuple, and each `ExecutionStateChanged` event emitted by the destination OffRamp re-exposes the same `messageId` as an indexed `topics[2]`. Matching source against destination by `messageId` yields real per-message send-to-execute latency per lane per direction, replacing the aggregate proxy.
+
+The same pending-queue pattern proven on CCTP applies: collector cycle (10 min) is shorter than typical CCIP end-to-end latency (a few minutes to tens of minutes depending on lane and source-chain finality). Each new `CCIPSendRequested` is INSERTed as a pending row in `ans_ccip_messages` with `dest_tx_hash = NULL`. At every subsequent cycle, destination OffRamp logs are scanned for `ExecutionStateChanged` events matching pending messageIds. Matched rows are UPDATEd with destination tx hash, block number, block timestamp, and execution state. Expiry is 2 h.
+
+The `sequence_gap = NULL` defect is resolved as a natural side-effect: `sequence_gap` is now derived from `MAX(sequence_number) - MAX(sequence_number) FILTER (executed)` over `ans_ccip_messages`, computed in the collector at every cycle.
+
+**Action taken**
+
+- New table `ans_ccip_messages` (BYTEA `message_id` UNIQUE, source send metadata: sender, receiver, sequence_number, nonce, gas_limit, fee_token, fee_token_amount, source_tx_hash, source_block_*; destination metadata nullable until execute matched: dest_tx_hash, dest_block_*, execution_state). RLS active, service_role-only.
+- New RPC `ccip_get_message_by_id(text) → jsonb` with SECURITY DEFINER, accepting hex string, decoding to BYTEA server-side.
+- Rust collector rewritten with ABI v1.2 decoder (slot offsets cross-checked against a reference production transaction). Pending-queue flow on `ans_ccip_messages` mirrors the CCTP pattern.
+- Edge Function `attestation` extended with `GET /v2/ccip/message/{message_id}`. CCIP bridge entries now expose `capability_level: per_message_attested`, `crypto.anchor: null`, and structured `metrics` derived from per-message data (`execute_latency_p90_s`, `sequence_gap`, `messages_confirmed_1h`).
+- Cloudflare Worker `api.invarians.com` allowlist regex added for the new dynamic path.
+- SDK Python `invarians 0.9.0` ships with `client.get_ccip_message(message_id)`. Backward-compatible with 0.8.x.
+
+**Verification**
+
+First live captures observed on 2026-05-12: one ETH → AVAX pending row (sequence 5300, source tx `0xd0630f...935b`) and one AVAX → ETH pending row on the regular destination scan. Endpoint `/v2/ccip/message/{messageId}` returns the full per-message row including ABI-decoded fields (source/dest chain selectors, sender, receiver, sequence_number, nonce, gas_limit, fee_token, fee_token_amount), confirming end-to-end correctness with production data.
+
+**Status:** ✅ Deployed end-to-end 2026-05-12. CCIP `capability_level` reaches parity with CCTP. The `sequence_gap = NULL` defect (3-week duration) is naturally resolved.
+**Confidence:** MEDIUM, ten EVM CCIP lanes captured per message. Solana CCIP (ETH ↔ SOL × 2) remains pending the Solana RPC pipeline integration.
+**Limitation:** `crypto.anchor` for CCIP entries stays `null`. CCIP's native cryptographic anchor is the DON threshold-signed `CommitReport` (F+1 multi-sig over the batch Merkle root, with per-message Merkle inclusion proof), structurally different from CCTP's single-attester ECDSA. Capture of `CommitReport` events on the destination CommitStore is the next step (target: late May / early June 2026), which will upgrade CCIP `capability_level` from `per_message_attested` to `per_message_crypto_anchored`.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

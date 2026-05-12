@@ -8,7 +8,7 @@ audience: [ai-agents, developers, researchers]
 
 # Invarians — Structural measurement method for blockchains
 
-> **Status:** v0.6 — ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned — see note §10.3). Section 13 reframed: variable-latency bridge scope (CCIP, CCTP, fast bridges) replaces native canonical L2-to-L1 scope; CCTP routes calibrated preliminary P97/14d on 2026-05-04 (cf. `calibration_log.md` `#036`); CCIP calibration deferred pending sustained throughput (cf. `#037`); native bridge scope retired (cf. `#038`). Complete M1 script implementation planned for v0.7.
+> **Status:** v0.6, ETH/SOL/POL event-based calibrations validated. M1 scripts available (`m1_eth.py` ✅, `m1_pol_phi720.py` ✅ production-aligned, see note §10.3). Section 13 reframed: variable-latency bridge scope (CCIP, CCTP, fast bridges) replaces native canonical L2-to-L1 scope; CCTP routes calibrated preliminary P97/14d on 2026-05-04 (cf. `calibration_log.md` `#036`), upgraded to per-message Circle ECDSA capture 2026-05-11 (cf. `#039`); CCIP upgraded to per-message capture 2026-05-12 (cf. `#040`); native bridge scope retired (cf. `#038`). Complete M1 script implementation planned for v0.7.
 
 ---
 
@@ -1127,7 +1127,7 @@ For every variable-latency bridge `id` in `panel.bridges[]`, the threshold `thre
 
 The primary signal selected for each bridge type reflects the observable that is continuously measurable on that protocol:
 
-- **CCIP lanes** (`*/ccip`) — the only continuously-filled observable in `ans_ccip_lane_signals` is `last_sequence_advance_s` (time delta since last DON commit nonce increment). The latency-of-actual-message observables (`commit_latency_p90_s`, `execute_latency_p90_s`, `total_latency_p90_s`) are filled only when a message transits, leaving them NULL during periods of low CCIP activity. Calibration on `last_sequence_advance_s` is the operational choice.
+- **CCIP lanes** (`*/ccip`) — since 2026-05-12 the collector captures each CCIP message individually: `CCIPSendRequested` on the source OnRamp is matched against `ExecutionStateChanged` on the destination OffRamp by bytes32 `messageId`. `execute_latency_p90_s` is derived from real send-to-execute pairs on `ans_ccip_messages`; `sequence_gap` and `messages_confirmed_1h` are derived from the same table. `last_sequence_advance_s` remains exposed for continuity. A pending queue (2 h expiry) handles the asymmetry between collector cycle (10 min) and end-to-end CCIP latency. CCIP `capability_level` is `per_message_attested`, matching CCTP coverage depth.
 
 - **CCTP routes** (`*/cctp`) — the continuously-filled observable in `ans_cctp_route_signals` is `circle_api_latency_ms` (Circle attestation API health-check latency, 99.97% non-null coverage). The direct message latency `attestation_latency_p90_s` requires sustained throughput, which is currently below the threshold for statistical baseline. Calibration on `circle_api_latency_ms` (converted to seconds for storage uniformity) is the operational choice and serves as an upstream proxy for end-to-end attestation pipeline health.
 

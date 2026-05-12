@@ -1,7 +1,7 @@
 ---
 title: "Invarians, Calibration Publications"
-version: "0.3"
-date: "2026-05-11"
+version: "0.4"
+date: "2026-05-12"
 audience: [ai-agents, developers, researchers]
 ---
 
@@ -38,7 +38,7 @@ BigQuery backtest 2020 to 2024 on 34,697 Ethereum windows.
 
 ### 3. Incident log, `calibration_log.md`
 
-Immutable history of all calibration decisions (EMA resets, bug fixes, methodological choices). Audit reference. 38 entries through 2026-05-11.
+Immutable history of all calibration decisions (EMA resets, bug fixes, methodological choices). Audit reference. 40 entries through 2026-05-12.
 
 ### 4. Protocol watch, `protocol_watch.md`
 
@@ -67,12 +67,12 @@ Live chains (12 signed codes calibrated):
 Pending (legacy 4-state until further calibration):
 - L1: Solana, Avalanche (calibration scheduled July 2026)
 
-**Per-message CCTP attestation capture (since 2026-05-11).** The CCTP collector now captures the Circle ECDSA secp256k1 signature for each attested message, retrievable via `GET /attestation/v2/cctp/attestation/{message_hash}`. The signature is independently verifiable against Circle's published attester public key, anchoring CCTP route signals in a cryptographic chain of trust distinct from the Invarians HMAC envelope. Each bridge entry in the panel exposes a `capability_level` enum (`per_message_attested` for CCTP routes today, `aggregate` for CCIP lanes pending the equivalent upgrade) plus structured `metrics` and `crypto` objects. See `calibration_log.md` Entry #038 and `limitations_and_plans.md §2.4`.
+**Per-message capture across CCTP and CCIP.** Both variable-latency bridge families now expose `capability_level: per_message_attested`. CCTP (since 2026-05-11): the collector captures the Circle ECDSA secp256k1 signature for each attested message, retrievable via `GET /attestation/v2/cctp/attestation/{message_hash}` and independently verifiable against Circle's published attester public key. CCIP (since 2026-05-12): the collector matches each `CCIPSendRequested` event on the source OnRamp against the corresponding `ExecutionStateChanged` event on the destination OffRamp via the bytes32 `messageId`, retrievable via `GET /attestation/v2/ccip/message/{message_id}`. CCIP `crypto.anchor` is `null` today; capture of CCIP `CommitReport` DON multi-sig and per-message Merkle inclusion proofs is the next step. See `calibration_log.md` Entries #039 (CCTP) and #040 (CCIP), and `limitations_and_plans.md §2.4`.
 
 Surveillance topology:
 - L1 substrates with structural and demand axes
 - L2 rollups (Ethereum-anchored) with rhythm, continuity, sequencer_publish_latency, plus 5-observable demand axis
-- CCIP routes (Chainlink), bidirectional, L1 to L1 and L1 to L2 — capability level `aggregate` today (per-message capture on near-term roadmap)
+- CCIP routes (Chainlink), bidirectional, L1 to L1 and L1 to L2, capability level `per_message_attested` with source-to-execute matched by bytes32 `messageId` (`crypto.anchor` remains `null` until DON multi-sig `CommitReport` capture)
 - CCTP routes (Circle), bidirectional, L1 to L1 and L1 to L2 — capability level `per_message_attested` with Circle ECDSA signature captured per message
 
 ---
@@ -84,8 +84,8 @@ Surveillance topology:
 | `methodology.md` | 🟡 active | 2026-04-29 | Complete method, pipeline, signals, calibration, M1 (§10.5 bootstrap 95% CI plus P99 variant), §9.3b L2 archive-replay event detection protocol (batch_gap on `ans_l2_adapter_signals`, archive node replay Q3 2026). |
 | `backtest_ethereum.md` | ✅ validated | 2026-04-19 | ETH backtest 2020 to 2024, TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.23% IC95% [1.11% ; 1.36%], §6 Temporal CV: TPR_test=100% (2/2), FPR_test=0.65% with published D2 params, §9 α_fast sensitivity sweep (knee confirmed at α=2/11). |
 | `backtest_solana.md` | ✅ validated | 2026-03-16 | SOL τ backtest 2021 to 2024, TPR_τ=100% (4/4) IC95% [39.76% ; 100%], FPR_τ=1.77% IC95% [1.70% ; 1.84%], π pending. |
-| `calibration_log.md` | 🟡 active | 2026-05-11 | Incident log and decisions, 38 entries through entry #038 (native bridge L2-to-L1 scope abandoned, value lever shifted to variable-latency bridges). |
-| `limitations_and_plans.md` | 🟡 living | 2026-05-11 | Known limitations and dated roadmap of corrections. Public accountability. Includes per-message CCTP attestation capture (2026-05-11) and CCIP capability gap acknowledgment. |
+| `calibration_log.md` | 🟡 active | 2026-05-12 | Incident log and decisions, 40 entries through entry #040 (CCIP per-message capture via messageId matching, source-to-execute end-to-end latency derived from per-message data). |
+| `limitations_and_plans.md` | 🟡 living | 2026-05-12 | Known limitations and dated roadmap of corrections. Public accountability. Per-message capture live on both CCTP (2026-05-11) and CCIP (2026-05-12). |
 | `protocol_watch.md` | 🟡 active | 2026-05-02 | EIP and upgrade tracking, 6 entries (latest: API v2.0 deployment). |
 | `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024, L2:S1D2 plus Bridge:BS2 invisible to fee monitors. |
 | `backtest_polygon.md` | ✅ validated v2.0 | 2026-04-19 | POL backtest 2020 to 2024, production-aligned Φ=720, TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=14.57% IC95% [14.30% ; 14.83%] (elevated, documented), M1 τ=12.60 / π=3.59 (formula v0.1), mean latency 3.95h. See `calibration_log.md` entry #023 for v1 to v2 decision. |
@@ -112,7 +112,7 @@ The following limitations are publicly acknowledged and documented in `limitatio
 3. Drift across months, rolling 30d absorbs it operationally; cross-month empirical drift not yet published.
 4. Nominal-only is a heuristic, not a rule.
 5. Native canonical bridges (L2 to L1) explicitly removed from the active calibration scope on 2026-05-04 (Entry #038). Variable-latency bridges (CCTP, CCIP) are the active scope because they are the surface on which Invarians provides a measurable value lever for autonomous agents.
-6. CCIP per-message latency P90/P99 and per-message attestation matching not yet computed (capability level `aggregate`); equivalent CCIP upgrade to CCTP's per-message capture is on the near-term roadmap.
+6. CCIP cryptographic anchor remains `null` today. CCIP `capability_level` is `per_message_attested` since 2026-05-12 (send-to-execute matched by `messageId`), but the DON threshold-signed `CommitReport` (CCIP's native crypto anchor, structurally different from CCTP's single-attester ECDSA) is the next capture step. Resolution target: late May / early June 2026.
 
 ---
 
@@ -127,4 +127,4 @@ The following limitations are publicly acknowledged and documented in `limitatio
 *Invarians measures which structural regime a blockchain is operating in.*
 *These publications allow the method to be audited independently.*
 
-*Created 2026-04-17. Last revision 2026-05-11.*
+*Created 2026-04-17. Last revision 2026-05-12.*
