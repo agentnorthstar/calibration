@@ -1,7 +1,7 @@
 ---
 title: "Invarians, Calibration Publications"
-version: "0.4"
-date: "2026-05-12"
+version: "0.5"
+date: "2026-05-20"
 audience: [ai-agents, developers, researchers]
 ---
 
@@ -38,7 +38,7 @@ BigQuery backtest 2020 to 2024 on 34,697 Ethereum windows.
 
 ### 3. Incident log, `calibration_log.md`
 
-Immutable history of all calibration decisions (EMA resets, bug fixes, methodological choices). Audit reference. 40 entries through 2026-05-12.
+Immutable history of all calibration decisions (EMA resets, bug fixes, methodological choices). Audit reference. 41 entries through 2026-05-20 (latest: Delta v3 per-chain precursors deployed, chain-type-exclusivity established).
 
 ### 4. Protocol watch, `protocol_watch.md`
 
@@ -57,8 +57,8 @@ API v2.0 unifies three primitives in a single signed payload:
 | Primitive | Purpose |
 |---|---|
 | **Attestation** | HMAC-SHA256 over the canonical payload, independently verifiable via `/attestation/v2/verify`. |
-| **Regime** | 12 signed codes per chain (S1, S2+, S2-, D1, D2+, D2-, D2±) on L1 and L2, plus bridge state. Drift Signal applies to L1 and L2 substrate observables only. |
-| **Drift Signal** | Per-metric `MetricBlock` (`ratio`, `ratio_long`, `shift`, `shift_delta`, `shift_magnitude_delta`) and per-axis composite drift. Substrate-physics concept: tracks 10 h / 30 d EMA deviation on L1 and L2 entries. Bridges, as operational pipelines rather than substrates, expose their fitness-for-action via current metrics + crypto pointer, without a drift block. |
+| **Regime + Bridge State** | 12 signed codes per chain (S1, S2+, S2-, D1, D2+, D2-, D2±) on L1 and L2, plus binary BS1 / BS2 per bridge direction. The descriptive vocabulary applies the same codes across chains; the qualitative cross-matrix test on documented events on ARB and OP suggests the vocabulary carries consistent operational meaning across chain typologies (formal universality test deferred). |
+| **Delta** | Per-metric `MetricBlock` (`ratio`, `ratio_long`, `shift`, `shift_delta`, `shift_magnitude_delta`) on L1 and L2 substrate entries, plus a per-chain `precursors[]` array (since 2026-05-20) of axis-specific calibrated configurations. Each precursor carries its calibration metadata: axis, threshold, K consecutive hours, lead horizon, predicted outcome, validated lift, precision, alert rate, and cross-chain status. Delta calibration is chain-type-exclusive: configurations validated on one chain corpus do not transfer to another chain with a different execution typology (empirical evidence on ETH-ARB-CCTP and ETH-OP-CCTP 2025, see `calibration_log.md` Entry #041). The v2 `drift.*` composite block remains exposed for backward compatibility during the transition release window. |
 
 Live chains (12 signed codes calibrated):
 - L1: Ethereum, Polygon
@@ -84,8 +84,8 @@ Surveillance topology:
 | `methodology.md` | 🟡 active | 2026-04-29 | Complete method, pipeline, signals, calibration, M1 (§10.5 bootstrap 95% CI plus P99 variant), §9.3b L2 archive-replay event detection protocol (batch_gap on `ans_l2_adapter_signals`, archive node replay Q3 2026). |
 | `backtest_ethereum.md` | ✅ validated | 2026-04-19 | ETH backtest 2020 to 2024, TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.23% IC95% [1.11% ; 1.36%], §6 Temporal CV: TPR_test=100% (2/2), FPR_test=0.65% with published D2 params, §9 EMA-smoothing sensitivity sweep (knee confirmed). |
 | `backtest_solana.md` | ✅ validated | 2026-03-16 | SOL structure backtest 2021 to 2024, TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=1.77% IC95% [1.70% ; 1.84%], demand calibration pending. |
-| `calibration_log.md` | 🟡 active | 2026-05-12 | Incident log and decisions, 40 entries through entry #040 (CCIP per-message capture via messageId matching, source-to-execute end-to-end latency derived from per-message data). |
-| `limitations_and_plans.md` | 🟡 living | 2026-05-12 | Known limitations and dated roadmap of corrections. Public accountability. Per-message capture live on both CCTP (2026-05-11) and CCIP (2026-05-12). |
+| `calibration_log.md` | 🟡 active | 2026-05-20 | Incident log and decisions, 41 entries through entry #041 (Delta v3 per-chain precursors deployed, chain-type-exclusivity established empirically on ETH-ARB-CCTP and ETH-OP-CCTP 2025 corpora). |
+| `limitations_and_plans.md` | 🟡 living | 2026-05-20 | Known limitations and dated roadmap of corrections. Public accountability. Per-message capture live on both CCTP (2026-05-11) and CCIP (2026-05-12). Per-chain Delta precursor registry live since 2026-05-20. |
 | `protocol_watch.md` | 🟡 active | 2026-05-02 | EIP and upgrade tracking, 6 entries (latest: API v2.0 deployment). |
 | `composite_signal_arbitrum_june2024.md` | ✅ validated | 2026-04-03 | ARB case study June 20, 2024, L2:S1D2 plus Bridge:BS2 invisible to fee monitors. |
 | `backtest_polygon.md` | ✅ validated v2.0 | 2026-04-19 | POL backtest 2020 to 2024, production-aligned integration window (720 blocks ~1h), TPR=100% (4/4) IC95% [39.76% ; 100%], FPR=14.57% IC95% [14.30% ; 14.83%] (elevated, documented), M1 stability score (structure) 12.60 / (demand) 3.59 (formula v0.1), mean latency 3.95h. See `calibration_log.md` entry #023 for v1 to v2 decision. |

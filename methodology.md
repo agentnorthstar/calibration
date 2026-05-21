@@ -1185,3 +1185,94 @@ The CCIP deferred calibration is itself a publishable empirical observation abou
 *sustained throughput (cf. `#037`), unified BS1/BS2 nomenclature across all variable-latency*
 *bridges, three-stage calibration lifecycle (LOW 14d / MEDIUM 25d / HIGH 30d) introduced*
 *Effective publication after minimum backtest validation on 2 chains*
+
+---
+
+## 14. Delta v3 per-chain precursor registry (2026-05-20)
+
+### 14.1 Why this section exists
+
+The v2.0 API exposed a composite Delta block per chain (`drift.structural`, `drift.demand` and their `_magnitude_delta` companions) intended as a per-axis trend summary. Empirical testing on two independent 2025 corpora (ETH-ARB-CCTP and ETH-OP-CCTP) under strict multiple-testing-corrected validation showed that this composite aggregation does not carry a validated agent-orientation signal: the canonical configuration produced lift 1.05x with placebo p = 0.19 on ETH-ARB-CCTP, indistinguishable from baseline.
+
+The empirical campaign extended to 648 pre-engaged configurations per corpus across four strategy families (single-axis grid, multi-axis grouped predictors, alternative narrower outcomes, ML logistic regression, cross-chain direction-aware predictors), each evaluated with 500 placebo permutations followed by combined Benjamini-Hochberg FDR correction at α = 0.05. Survival required both FDR-adjusted p < 0.05 AND lift >= 1.5x.
+
+The result: a small set of validated configurations exists per corpus, but the sets are chain-specific. The v3 design replaces the composite block with a per-chain precursors array carrying the validated configurations' calibration metadata.
+
+### 14.2 Test protocol and result
+
+Three tests were run.
+
+1. **Discovery on ETH-ARB-CCTP 2025.** The 648-configuration grid run on the ARB corpus produces six survivors with lift 1.53x to 2.36x. Four target the narrower outcome `latency_high_only` (CCTP attestation latency p90 ratio above 50x the monthly median), one targets `bs2_only` (calibrated BS2 state on either bridge direction), one is a cross-chain prediction (`bridge_arb_to_eth`). The strongest is `arb_struct_seq_publish_latency_shift` at K = 2 consecutive hours, percentile threshold 0.90, lead horizon 3 hours.
+
+2. **Discovery on ETH-OP-CCTP 2025.** The same 648-configuration grid run on the OP corpus produces exactly one survivor: `eth_struct_continuity_shift` at K = 2, percentile 0.95, lead 6 hours, outcome `bridge_stress_full`, lift 3.72x. Five of the fifteen top configurations by lift on OP rely on Ethereum L1 structural axes, suggesting that the bridge state on ETH-OP-CCTP is more sensitive to L1 conditions than to L2 OP-side conditions, consistent with the moderate CCTP throughput observed on this corridor.
+
+3. **Cross-corpus tests.** The six ARB survivors were applied to the OP corpus by axis substitution (arb_* renamed op_*) and outcome substitution, with no parameter re-tuning. None of the six holds the lift >= 1.5x AND placebo p < 0.05 criterion. The OP survivor was applied to the ARB corpus by the same logic. Lift on ARB: 0.83 (below unconditional baseline), placebo p: 0.74. FAIL.
+
+### 14.3 Reading
+
+The three tests converge to a single empirical conclusion. Each chain produces its own validated Delta precursor configurations on its own corpus, and these configurations do not transfer when applied to a chain with a different execution typology. Arbitrum (Nitro rollup, sub-second blocks, SequencerInbox event-based batches, high CCTP throughput) and Optimism (OP Stack rollup, 2-second blocks, BatchInbox EOA-based batches, moderate CCTP throughput) operate on distinct substrate dynamics. A predictor calibrated on one captures the dynamics of that substrate, not a regularity that crosses substrates. Delta calibration is chain-type-exclusive.
+
+This outcome is consistent with the substrate physics. A signal that transferred universally across these typologies would have warranted close scrutiny rather than this one: it would have suggested an artefact of panel construction common to both rather than substrate-specific predictive content.
+
+### 14.4 API exposure: precursors registry per chain
+
+Each L1 and L2 panel entry exposes a `precursors[]` array on the v2 panel since 2026-05-20. The array is empty on chains where no calibrated configuration exists yet (per-chain registry, no aggregation across chains). Each precursor element carries explicit calibration metadata:
+
+```
+axis                        : substrate metric axis (e.g. arb_struct_seq_publish_latency_shift)
+fires                       : single-hour boolean check, null when upstream signal unavailable
+current_smd                 : current value of shift_magnitude_delta on the axis
+smd_threshold_value         : empirical quantile threshold from the calibration corpus
+k_consecutive_hours         : consecutive-hour condition required for full engagement
+pctl_threshold              : the calibrated quantile (e.g. 0.90)
+lead_hours                  : horizon over which the outcome is predicted
+outcome_category            : the predicted bridge-layer outcome
+bridge_corridor             : corridor on which the outcome was evaluated
+baseline_lift               : lift on the calibration corpus (precision / unconditional rate)
+baseline_p_adj              : combined BH FDR-adjusted p-value
+baseline_precision          : precision on the calibration corpus
+baseline_alert_rate         : alert rate on the calibration corpus
+cross_chain_status          : NOT_TESTED | PASS_on_<chain> | FAIL_on_<chain>
+cross_chain_lift            : lift observed in the cross-chain test (nullable)
+cross_chain_placebo_p       : placebo p-value in the cross-chain test (nullable)
+calibrated_at               : ISO timestamp of the calibration registry entry
+```
+
+The `cross_chain_status` field travels with each precursor and documents whether the configuration has been tested on another chain corpus and what the result was. This makes the per-chain scope explicit at the payload level: an agent reading a precursor with `cross_chain_status: FAIL_on_optimism` knows that the calibration is valid on its own chain but did not generalize to OP.
+
+### 14.5 Calibration status
+
+| Chain     | Precursors live | Notes |
+|-----------|-----------------|-------|
+| ethereum  | 0 | per-chain registry, no calibrated precursor yet |
+| polygon   | 0 | per-chain registry, no calibrated precursor yet |
+| arbitrum  | 6 | calibrated on ETH-ARB-CCTP 2025, all `FAIL_on_optimism`, lifts 1.53 to 2.36 |
+| base      | 0 | not yet covered by a calibration grid |
+| optimism  | 1 | calibrated on ETH-OP-CCTP 2025, `eth_struct_continuity_shift`, lift 3.72, `FAIL_on_arbitrum` |
+| avalanche | 0 | observation tier, no calibrated precursor yet |
+| solana    | 0 | calibration target Q3 2026 |
+
+Six of the seven seeded rows currently have `smd_threshold_value: null` (placeholder pending re-derivation from the production rolling P90 over 30 days on `shift_magnitude_delta` per axis). The OP precursor carries its seeded threshold from the grid output (0.006711). Until thresholds are seeded for all rows, the `fires` field returns `null` on the affected rows, and the precursors expose only their calibration metadata, not an actionable boolean. The metadata itself is useful for auditors and for agent design (it documents which axis, lead, and outcome are validated per chain).
+
+### 14.6 Backward compatibility
+
+The v2 `drift.*` composite block remains exposed on each L1 and L2 entry during the transition release window. Consumers of `entry.drift.demand_magnitude_delta` continue to read the field; the field is computed with the same v2 formula. The block is flagged `deprecated_unvalidated` at the entry root in the v3 payload metadata.
+
+The v3 design adds `precursors[]` alongside, without removing fields. SDK Python 0.10.0 exposes both views in parallel for the release window. The decision to retire the composite drift block is deferred to a future minor release after one full deprecation cycle.
+
+### 14.7 Limitations
+
+- N = 2 corpora (ETH-ARB-CCTP, ETH-OP-CCTP). The chain-type-exclusivity reading is empirical on these two pairs; extending to a third independent corpus (e.g. ETH-POL on a variable-latency bridge) would strengthen or refine the reading. Not yet performed.
+- `smd_threshold_value` on six of seven rows currently null pending re-derivation from production rolling distribution. Operational follow-up.
+- The 648-configuration grid validates configurations against a specific outcome family (bridge stress at h+lead). Other outcome families (e.g. settlement value-at-risk, MEV cascade prediction, withdraw queue depth) have not been tested under the same protocol. The validated configurations are scoped to bridge stress, not to a generic operational outcome.
+
+### 14.8 Reproducibility
+
+The full pipeline is reproducible from public on-chain data and the published research note. The grid script runs the 648-configuration sweep with placebo permutation and combined BH FDR correction in approximately 90 seconds on a single core against either the 2025 ETH-ARB-CCTP or ETH-OP-CCTP hourly panel. All output is committed as JSON and Markdown artefacts in the public research record. The methodology mirrors the discipline applied to earlier calibration campaigns: pre-engaged configurations before testing, no post-hoc tuning, FDR correction for multiple testing, placebo permutation as null-hypothesis check, and cross-corpus application of validated configurations without re-tuning.
+
+Public research note: [invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html](https://invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html)
+
+---
+
+*v0.7 (Draft, 20 May 2026)*
+*v0.7: section 14 added (Delta v3 per-chain precursor registry, chain-type-exclusivity established empirically on two corpora, three-test protocol documented, calibration status per chain published, backward compatibility with v2 drift block preserved during transition release window). See `calibration_log.md` Entry #041.*

@@ -1957,5 +1957,59 @@ First live captures observed on 2026-05-12: one ETH → AVAX pending row (sequen
 
 ---
 
+## Entry #041 (2026-05-20): Delta v3 per-chain precursors deployed, chain-type-exclusivity established empirically
+
+**Type:** Primitive redesign, follow-up to Entry #033 (v2.0 panel launch with composite drift block, 2026-04-30).
+**Surface:** Postgres table `delta_precursors_calibration` + view `v_delta_precursors_panel` (Supabase), Edge Function `attestation/index.ts` (per-entry `precursors[]` array), SDK Python `invarians 0.10.0` on PyPI, public research note on `invarians.com`.
+**Trigger:** Empirical re-evaluation of the v2.0 composite Delta block (`drift.structural`, `drift.demand` and their `_magnitude_delta` companions) against documented bridge stress on 2025 corpora. The canonical aggregation did not produce a validated agent-orientation signal under strict multiple-testing-corrected validation.
+
+---
+
+**Empirical campaign**
+
+A 648-configuration grid was run twice independently, once on the ETH-ARB-CCTP 2025 corpus and once on the ETH-OP-CCTP 2025 corpus. Each grid spans four strategy families: single-axis with three percentiles × two K values × four lead horizons (288 configurations), multi-axis grouped union/voting predictors (64), alternative narrower outcomes (192), ML logistic regression on 24 features (8 configurations after H1/H2 split), and cross-chain direction-aware predictors (96). Each configuration is evaluated with 500 placebo permutations, then Benjamini-Hochberg FDR correction is applied within each family and across the 648 combined. Survival criterion: combined FDR p-adjusted < 0.05 AND lift >= 1.5x.
+
+**Three tests**
+
+1. **ARB grid → 6 survivors.** On the ETH-ARB-CCTP corpus, six configurations survive both filters, with lifts 1.53 to 2.36x. Four target the narrower outcomes `latency_high_only` or `bs2_only`, one is a cross-chain prediction (`bridge_arb_to_eth`). The strongest is `arb_struct_seq_publish_latency_shift` (K=2, pctl=0.90, lead 3h, lift 2.36x).
+
+2. **OP grid → 1 survivor.** On the ETH-OP-CCTP corpus, run independently with the same 648-configuration architecture, exactly one configuration survives: `eth_struct_continuity_shift` (K=2, pctl=0.95, lead 6h, outcome `bridge_stress_full`, lift 3.72x, combined FDR p-adjusted 0.000).
+
+3. **Cross-corpus tests, both directions.**
+   - The six ARB survivors were applied to the OP panel by axis substitution (arb_* renamed op_*), outcome substitution (latency / BS2 on the ETH-OP-CCTP corridor), with no parameter re-tuning. None of the six holds: all four targeting `latency_high_only` produce lift 0.00 (positive base rate on OP too low at 9 hours per year), the eth_demand_tx survivor produces lift 1.11 (p=0.35), the cross-chain survivor produces lift 1.42 (p=0.36). All FAIL the lift >= 1.5x AND p < 0.05 criterion.
+   - The OP survivor (`eth_struct_continuity_shift`) was applied to the ARB panel without re-tuning. Result: lift 0.83 (below unconditional baseline), placebo p-value 0.74. FAIL.
+
+**Reading**
+
+The three tests converge to a single empirical conclusion. Each chain produces its own validated Delta precursor configurations on its own corpus, and these configurations do not transfer when applied to a chain with a different execution typology. ARB (Nitro rollup, sub-second blocks, SequencerInbox event-based batches, high CCTP throughput) and OP (OP Stack rollup, 2-second blocks, BatchInbox EOA-based batches, moderate CCTP throughput) operate on distinct substrate dynamics. A predictor calibrated on one captures the dynamics of that substrate, not a regularity that crosses substrates. Delta calibration is chain-type-exclusive.
+
+This is consistent with the substrate physics. A signal that transferred universally across these typologies would have warranted close scrutiny rather than this one.
+
+**Action taken**
+
+- New Postgres table `delta_precursors_calibration` with primary key `(chain, axis, k_consecutive_hours, lead_hours, outcome_category)`. Seven rows seeded: six on `arbitrum` (all `cross_chain_status: FAIL_on_optimism`), one on `optimism` (`cross_chain_status: FAIL_on_arbitrum`). RLS active, service_role-only.
+- New view `v_delta_precursors_panel` exposes the calibration rows to the Edge Function.
+- Edge Function `attestation/v2/panel` extended: each L1/L2 entry now carries a `precursors[]` array populated by joining `v_delta_precursors_panel` on `chain`. Each precursor element exposes `axis`, `fires`, `current_smd`, `smd_threshold_value`, `k_consecutive_hours`, `pctl_threshold`, `lead_hours`, `outcome_category`, `bridge_corridor`, `baseline_lift`, `baseline_p_adj`, `baseline_precision`, `baseline_alert_rate`, `cross_chain_status`, `cross_chain_lift`, `cross_chain_placebo_p`, `calibrated_at`. The v2 `drift.*` composite block remains exposed during the transition release window for backward compatibility.
+- SDK Python `invarians 0.10.0` ships with `DeltaPrecursor`, `parse_delta_precursors`, `firing_precursors`. V2L1Entry and V2L2Entry extended with `precursors: List[DeltaPrecursor]`. Backward-compatible with 0.9.x (drift block still accessible via `entry.drift.demand` etc.).
+- HMAC integrity preserved (precursors attached to entries are part of the signed payload).
+
+**Status:** ✅ Deployed end-to-end 2026-05-20. Seven precursors live in production (six arbitrum, one optimism). Each carries its cross-chain status from the published article. The v2 drift block is kept in parallel for the transition release window.
+**Confidence:** MEDIUM per-chain. The 648-configuration grid + combined BH FDR + cross-corpus test is the strongest validation discipline applied to a calibrated signal in this project. The MEDIUM rating reflects N = 2 corpora (ARB, OP); HIGH would require a third chain corpus producing an independent set of survivors and a cross-test grid completing the typology coverage.
+**Limitation:** `smd_threshold_value` is currently null on six of seven rows (placeholder pending re-derivation from the production substrate pipeline rolling P90 over 30 days on `shift_magnitude_delta` per axis). The OP precursor carries its seeded threshold from the grid output (0.006711). Until thresholds are seeded for all rows, `fires` returns null on those rows, and the precursors expose only their calibration metadata (lift, lead, outcome, cross-chain status), not an actionable boolean. The metadata is itself useful for auditors and for agent design (it documents which axis, lead, and outcome are validated per chain). Re-derivation of the empirical P90 thresholds from production data is the next operational step.
+
+**Documentation**
+
+- Public research note: [invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html](https://invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html) (Delta calibration is chain-type-exclusive: ETH-ARB-CCTP and ETH-OP-CCTP, 2025)
+- Public methodology: section "Delta v3 per-chain precursor registry" in `methodology.md` (this repo)
+- Public limits: section "Per-chain precursor calibration and the universality question for Primitive 2" in `limitations_and_plans.md` (this repo)
+- Consumer guide: [invarians.com/developers.html#consume-precursors](https://invarians.com/developers.html#consume-precursors) (three reference policies for agents reading precursors)
+
+**Follow-up**
+
+- Re-derive `smd_threshold_value` for the six arbitrum precursors on the production rolling P90 over 30 days; UPDATE table in place. Target: 2026 Q3.
+- A formal statistical test of the universality of Primitive 2 (Regime + Bridge State) across chain typologies on a corpus of 50+ documented infrastructure-grade events with placebo permutation framework. Target: 2026 Q3 to Q4 follow-up study. Out of scope for the present entry.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

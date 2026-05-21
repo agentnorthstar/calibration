@@ -271,5 +271,36 @@ Certain properties of the Invarians signal have been framed as defects in prior 
 
 ---
 
-*Maintained 2026-04-19. This document is versioned.*
-*Next review planned: end of Q2 2026.*
+## 8. Per-chain Delta precursor calibration (since 2026-05-20)
+
+### 8.1 What is exposed
+
+Since the 2026-05-20 release (`calibration_log.md` Entry #041, `methodology.md` §14), each L1/L2 panel entry exposes a `precursors[]` array of axis-specific calibrated configurations scoped to that chain. Each precursor carries its calibration metadata: axis, threshold, K consecutive hours, lead horizon, predicted outcome, validated lift, precision, alert rate, and a `cross_chain_status` field that documents the result of testing the configuration on another chain corpus.
+
+The current live registry holds seven configurations: six on arbitrum (calibrated on ETH-ARB-CCTP 2025, lifts 1.53 to 2.36x, all carry `cross_chain_status: FAIL_on_optimism`), one on optimism (calibrated on ETH-OP-CCTP 2025, `eth_struct_continuity_shift` lift 3.72x, `cross_chain_status: FAIL_on_arbitrum`).
+
+### 8.2 Known limitations on the current registry
+
+**Per-chain registry, no transferability.** The current empirical evidence on two corpora (ETH-ARB-CCTP, ETH-OP-CCTP) suggests that Delta calibration is chain-type-exclusive. Configurations validated on Arbitrum (Nitro rollup, sub-second blocks, high CCTP throughput) do not hold when applied to Optimism (OP Stack rollup, 2-second blocks, moderate CCTP throughput) and vice versa. The `cross_chain_status` field on each precursor documents the failure direction. An agent acting on chain X should not apply chain Y's precursors to chain X.
+
+**`smd_threshold_value` placeholder on six rows.** The six ARB precursors were seeded with `smd_threshold_value: NULL` pending re-derivation of the empirical P90 quantile on the production substrate pipeline rolling 30 days of `shift_magnitude_delta` per axis. Until those thresholds are seeded, `fires` returns `null` on the affected rows and the precursors expose only their calibration metadata (lift, lead, outcome, cross-chain status), not an actionable boolean. The OP precursor carries its seeded threshold from the grid output (`0.006711`). Re-derivation of the empirical thresholds from the production pipeline is the next operational step.
+
+**N = 2 corpora.** The chain-type-exclusivity reading is empirical on two pairs. Extending to a third independent chain corpus (e.g. ETH-POL on a variable-latency bridge) would strengthen or refine the reading. Not yet performed.
+
+**Outcome family scoped to bridge stress.** The 648-configuration grid validates configurations against outcomes in the bridge stress family (BS2 state, latency above 50x monthly median, bridge_stress_full union). Other outcome families (e.g. settlement value-at-risk, MEV cascade prediction, withdraw queue depth) have not been tested under the same protocol. The validated configurations are scoped to bridge stress as defined by the methodology, not to a generic operational outcome.
+
+### 8.3 Future work: Primitive 2 universality formal study
+
+The Delta primitive is empirically chain-type-exclusive on the two corpora tested. The Regime + Bridge State primitive applies the same descriptive vocabulary (12 signed codes per chain, BS1/BS2 per bridge direction) to every chain, but whether that vocabulary captures consistent operational meaning across chain typologies is a separate empirical question. A qualitative cross-matrix test on documented infrastructure-grade events from 2025 (six on ETH-OP-CCTP, eight on ETH-ARB-CCTP) suggested the vocabulary holds across the two chains, with magnitude differences that reflect the actual substrate dynamics rather than vocabulary translation issues. Fusaka (2025-12-03), in particular, fires at 100% non-S1D1 on both ETH and both L2 panels, with bridge BS2 detected on both corridors.
+
+A formal statistical test of the universality of Primitive 2 requires (a) a larger event corpus (target N >= 50, on three or more chains with distinct typologies), (b) a placebo permutation framework over the regime distribution per chain, (c) a formal hypothesis comparing the matrix response distribution under control conditions (random hour samples) versus documented-event windows on each chain, (d) a consistency metric across chains (Kolmogorov-Smirnov on regime distributions, or a chi-square contingency test on regime-pair frequencies). This study is recorded as a follow-up. Target: 2026 Q3 to Q4.
+
+### 8.4 Boundary: regime classification vs absence of substrate
+
+The regime classification is computed on the blocks observed during each hour. A sequencer downtime that suppresses block production leaves no blocks to classify for that hour, and the matrix produces no regime signal on the affected window (the regime defaults to S1D1 by construction, since there is nothing to qualify as structural divergence). Downtime detection is the role of the per-entry `status` field on each panel entry (`OK`, `STALE`, `UNAVAILABLE`, `UNCALIBRATED`), which is orthogonal to the regime code. An agent reading the panel inspects both: `status` for substrate availability, `regime` for substrate dynamics conditional on availability. The two compose by design.
+
+This boundary was made explicit in the public site documentation (`glossary.html` Structural Regime term-block, `foundations.html` Primitive 2 section) in the 2026-05-20 release.
+
+---
+
+*Maintained 2026-05-20. This document is versioned.*
