@@ -1,0 +1,200 @@
+{
+  "config_pre_engaged": {
+    "Test_A_normalized": {
+      "smd_z_threshold": 2.0,
+      "K_consecutive": 2,
+      "axes": "all 12 substrate shifts"
+    },
+    "Test_B_sequencer_only": {
+      "axis": "arb_struct_seq_publish_latency_shift",
+      "smd_percentile": 0.9,
+      "K_consecutive": 2,
+      "threshold_value": 0.22584
+    },
+    "Test_C_trend_12h": {
+      "window_hours": 12,
+      "min_step_increases": 9,
+      "axes": "all 12 substrate shifts"
+    },
+    "common": {
+      "outcome": "bridge stress in (T, T+6h] = BS2 OR latency ratio >= 50x monthly median",
+      "exclusions": "January 2025 + currently bridge-stressed hours",
+      "placebo_permutations": 1000,
+      "anti_tautology": "predictor uses substrate shifts only; outcome uses bridge state + latency"
+    }
+  },
+  "results": {
+    "A_normalized": {
+      "n_eligible": 6835,
+      "n_delta_fires": 1837,
+      "n_positive_outcomes": 2737,
+      "base_rate": 0.4004,
+      "alert_rate": 0.2688,
+      "TP": 730,
+      "FP": 1107,
+      "FN": 2007,
+      "TN": 2991,
+      "precision": 0.3974,
+      "recall": 0.2667,
+      "lift": 0.992,
+      "fp_rate": 0.2701,
+      "f1": 0.3192,
+      "placebo_null_mean_lift": 1.0,
+      "placebo_null_p95_lift": 1.041,
+      "placebo_null_max_lift": 1.071,
+      "placebo_p_value": 0.633,
+      "per_event_precursor": [
+        {
+          "event": "S03",
+          "delta_fired_in_6h_prior": true
+        },
+        {
+          "event": "L02",
+          "delta_fired_in_6h_prior": true
+        },
+        {
+          "event": "D01",
+          "delta_fired_in_6h_prior": true
+        },
+        {
+          "event": "S04",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "S05",
+          "delta_fired_in_6h_prior": true
+        }
+      ],
+      "n_events_with_precursor": 4
+    },
+    "B_sequencer_only": {
+      "n_eligible": 6835,
+      "n_delta_fires": 37,
+      "n_positive_outcomes": 2737,
+      "base_rate": 0.4004,
+      "alert_rate": 0.0054,
+      "TP": 22,
+      "FP": 15,
+      "FN": 2715,
+      "TN": 4083,
+      "precision": 0.5946,
+      "recall": 0.008,
+      "lift": 1.485,
+      "fp_rate": 0.0037,
+      "f1": 0.0159,
+      "placebo_null_mean_lift": 1.003,
+      "placebo_null_p95_lift": 1.35,
+      "placebo_null_max_lift": 1.822,
+      "placebo_p_value": 0.012,
+      "per_event_precursor": [
+        {
+          "event": "S03",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "L02",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "D01",
+          "delta_fired_in_6h_prior": true
+        },
+        {
+          "event": "S04",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "S05",
+          "delta_fired_in_6h_prior": false
+        }
+      ],
+      "n_events_with_precursor": 1
+    },
+    "C_trend_12h": {
+      "n_eligible": 6835,
+      "n_delta_fires": 193,
+      "n_positive_outcomes": 2737,
+      "base_rate": 0.4004,
+      "alert_rate": 0.0282,
+      "TP": 58,
+      "FP": 135,
+      "FN": 2679,
+      "TN": 3963,
+      "precision": 0.3005,
+      "recall": 0.0212,
+      "lift": 0.75,
+      "fp_rate": 0.0329,
+      "f1": 0.0396,
+      "placebo_null_mean_lift": 1.001,
+      "placebo_null_p95_lift": 1.139,
+      "placebo_null_max_lift": 1.333,
+      "placebo_p_value": 1.0,
+      "per_event_precursor": [
+        {
+          "event": "S03",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "L02",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "D01",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "S04",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "S05",
+          "delta_fired_in_6h_prior": false
+        }
+      ],
+      "n_events_with_precursor": 0
+    },
+    "INITIAL_canonical": {
+      "n_eligible": 6835,
+      "n_delta_fires": 367,
+      "n_positive_outcomes": 2737,
+      "base_rate": 0.4004,
+      "alert_rate": 0.0537,
+      "TP": 155,
+      "FP": 212,
+      "FN": 2582,
+      "TN": 3886,
+      "precision": 0.4223,
+      "recall": 0.0566,
+      "lift": 1.055,
+      "fp_rate": 0.0517,
+      "f1": 0.0999,
+      "placebo_null_mean_lift": 1.001,
+      "placebo_null_p95_lift": 1.109,
+      "placebo_null_max_lift": 1.198,
+      "placebo_p_value": 0.19,
+      "per_event_precursor": [
+        {
+          "event": "S03",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "L02",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "D01",
+          "delta_fired_in_6h_prior": true
+        },
+        {
+          "event": "S04",
+          "delta_fired_in_6h_prior": false
+        },
+        {
+          "event": "S05",
+          "delta_fired_in_6h_prior": false
+        }
+      ],
+      "n_events_with_precursor": 1
+    }
+  }
+}

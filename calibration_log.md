@@ -2011,5 +2011,54 @@ This is consistent with the substrate physics. A signal that transferred univers
 
 ---
 
+## Entry #042 (2026-05-22): Public corpus-2025/ folder released, ETH-ARB-CCTP and ETH-OP-CCTP artefacts published
+
+**Type:** Documentation release, follow-up to Entry #041 (V3 Delta per-chain precursors deployed, 2026-05-20).
+**Surface:** `corpus-2025/` folder on this repository (`agentnorthstar/calibration`).
+**Trigger:** The V3 Delta deployment in Entry #041 referenced an empirical campaign run on two 2025 corpora. The campaign artefacts (hourly panels, extraction queries, pipeline scripts, result outputs) were not yet published. The reproducibility claim in `methodology.md` §14.8 was therefore not externally verifiable. The present entry closes that gap.
+
+---
+
+**What is published**
+
+The new folder `corpus-2025/` ships, organized by corridor:
+
+- `corpus-2025/README.md`: top-level overview of why the two corridors were selected and the chain-type-exclusivity test design.
+- `corpus-2025/eth-arb-CCTP/`: full corridor artefact set for ETH L1 to Arbitrum L2 via CCTP V1.
+  - `README.md`, `METHODOLOGY.md`, `EVENTS_2025.md`, `API_CONTRACT.md`, `LIMITATIONS.md`.
+  - `data/`: hourly panel for 2025 (parquet + csv + data dictionary), reconstructed bridge state.
+  - `bigquery/`: extraction queries (5 SQL files + `queries.md`).
+  - `scripts/`: six Python scripts (panel export, baseline and per-event plots, Delta full exploration, FDR grid search, reconfig A/B/C tests).
+  - `results/`: JSON outputs and Markdown reports for the three Delta tests.
+  - `plots/`: annual baseline plus five per-event figures.
+- `corpus-2025/eth-op-CCTP/`: corridor artefact set for ETH L1 to Optimism L2 via CCTP V1.
+  - `README.md`, `METHODOLOGY.md`, `LIMITATIONS.md`.
+  - `data/`: OP hourly panel for 2025, reconstructed bridge state.
+  - `bigquery/pull_op_cctp.md`: extraction query documentation.
+  - `scripts/`: five Python scripts (BigQuery pull, panel construction, Delta full exploration, OOS validation in both directions).
+  - `results/`: Delta full-grid outputs, ARB-to-OP transfer test, OP-to-ARB transfer test.
+- `corpus-2025/shared/`: cross-corridor synthesis (event inventories for both chains, qualitative matrix universality study).
+
+**Reading boundary**
+
+The shipped artefacts cover three legitimate audit needs:
+
+1. **Methodology audit**: read the per-corridor `METHODOLOGY.md`, the BigQuery query texts in `bigquery/`, and the script source code in `scripts/`. These document exactly what the panels and the validation tests compute.
+2. **Result verification**: read the result JSON and Markdown files in `results/` and verify the published lifts, FDR-adjusted p-values, and cross-corridor outcomes against the shipped panel parquets. This does not require re-running the pipeline.
+3. **End-to-end re-execution**: the Python scripts depend on an internal helper package (`lib/`) that is not shipped. The shipped panels and queries are sufficient for any external party to rebuild a comparable pipeline from public BigQuery data without that helper.
+
+**Action taken**
+
+- Created `corpus-2025/` folder with 53 files (3 corridor MD sets, 4 binary data files, 11 Python scripts, 5 SQL files, 11 JSON outputs, 8 Markdown reports, 6 PNG plots, 5 internal MDs).
+- Patched `methodology.md` §14.8 to point at the corpus and clarify the helper-package boundary. Methodology footer bumped from v0.7 to v0.8.
+- No change to the v2.0 API behavior, no change to the calibration parameters of any chain. This entry is documentation-only.
+
+**Status:** ✅ Released 2026-05-22 on `agentnorthstar/calibration`. Reproducibility claim from Entry #041 §14.8 is now externally verifiable on the result level; pipeline-level re-execution remains scoped to consumers willing to derive comparable helpers.
+**Confidence:** N/A (documentation release, no calibration change).
+**Limitation:** The internal `lib/` helper package is not shipped. Consumers who want a turn-key re-execution of the pipeline must derive equivalent helper functions from the methodology. The shipped result artefacts (parquets + JSON + reports) allow verification without that.
+**Follow-up:** None tied to this entry. Future corridor studies (e.g., ETH-POL via variable-latency bridge, mentioned in §14.7) will extend `corpus-2025/` with their own subfolder when calibrated.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

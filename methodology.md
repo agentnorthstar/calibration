@@ -1268,11 +1268,16 @@ The v3 design adds `precursors[]` alongside, without removing fields. SDK Python
 
 ### 14.8 Reproducibility
 
-The full pipeline is reproducible from public on-chain data and the published research note. The grid script runs the 648-configuration sweep with placebo permutation and combined BH FDR correction in approximately 90 seconds on a single core against either the 2025 ETH-ARB-CCTP or ETH-OP-CCTP hourly panel. All output is committed as JSON and Markdown artefacts in the public research record. The methodology mirrors the discipline applied to earlier calibration campaigns: pre-engaged configurations before testing, no post-hoc tuning, FDR correction for multiple testing, placebo permutation as null-hypothesis check, and cross-corpus application of validated configurations without re-tuning.
+The full corpus, including hourly panels, BigQuery extraction queries, Python pipeline scripts, and result artefacts (JSON + Markdown), is published in `corpus-2025/`. The folder is organized as `corpus-2025/eth-arb-CCTP/` and `corpus-2025/eth-op-CCTP/`, each carrying its own `README.md`, `METHODOLOGY.md`, `LIMITATIONS.md`, `data/`, `bigquery/`, `scripts/`, and `results/`. A `shared/` folder holds the cross-corridor event inventories and the qualitative matrix universality study.
+
+The grid script runs the 648-configuration sweep with placebo permutation and combined BH FDR correction in approximately 90 seconds on a single core against either the 2025 ETH-ARB-CCTP or ETH-OP-CCTP hourly panel. Result artefacts in `results/` can be inspected directly without re-execution. End-to-end re-execution of the Python pipeline requires an internal helper package (`lib/`) that is not shipped in the corpus; the shipped panel parquets, BigQuery query texts, and JSON outputs are sufficient for an external auditor to verify the published findings without running the pipeline from scratch.
+
+The methodology mirrors the discipline applied to earlier calibration campaigns: pre-engaged configurations before testing, no post-hoc tuning, FDR correction for multiple testing, placebo permutation as null-hypothesis check, and cross-corpus application of validated configurations without re-tuning.
 
 Public research note: [invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html](https://invarians.com/blog/delta-recalibration-eth-arb-cctp-2025.html)
 
 ---
 
-*v0.7 (Draft, 20 May 2026)*
+*v0.8 (Draft, 22 May 2026)*
+*v0.8: section 14.8 updated to point at the published `corpus-2025/` folder (hourly panels, BigQuery queries, scripts, results) and to clarify the boundary between shipped artefacts and the internal helper package. See `calibration_log.md` Entry #042.*
 *v0.7: section 14 added (Delta v3 per-chain precursor registry, chain-type-exclusivity established empirically on two corpora, three-test protocol documented, calibration status per chain published, backward compatibility with v2 drift block preserved during transition release window). See `calibration_log.md` Entry #041.*
