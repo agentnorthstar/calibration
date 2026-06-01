@@ -2250,5 +2250,76 @@ After redeployment, the same three queries on a one-hour-fresh window must show 
 
 ---
 
+## Entry #046: Retroactive reclassification of historical Fast/req=0 rows
+
+**Type:** One-off data remediation on the message-level table, follow-up to Entry #045. No code or methodology change.
+**Surface:** `ans_cctp_v2_message_attestations` rows historically inserted with `mode_requested = 'fast'` and `min_finality_threshold_requested = 0`.
+**Trigger:** Immediately after the collector redeployment of Entry #045, the first two production aggregation cycles still reported `BS2` on the BASE corridors with `mode_fallback_rate` between 0.54 and 0.81. The cycles were inspecting a 1-hour rolling window of `ans_cctp_v2_message_attestations` rows that were still tagged `mode_requested = 'fast'` for the `req = 0` cohort, because the fix only applies to new inserts. Waiting one full hour for the buggy rows to roll out of the window would have left the BS verdicts inconsistent with the corrected classifier semantics during the entire window.
+
+---
+
+**Reasoning**
+
+The classifier fix of Entry #045 is forward-only by design: the Rust code controls the value written at insert time, not the value of rows already in the table. The 1-hour rolling aggregation window of `aggregator.rs` reads every row whose `first_observed_at` falls in the last hour, regardless of when it was inserted. Until the buggy rows naturally exit the window, the aggregation continues to count them in the Fast cohort and to record their Standard execution as fallback. The remediation is to align the historical row tagging with the corrected semantics in one explicit, idempotent, documented statement.
+
+The remediation does not alter any cryptographic-grade observable: the source-side `min_finality_threshold_requested` field, the destination-side `min_finality_threshold_executed` field, the source / destination tx hashes, the attestation signature, the timestamps — all of these are preserved. Only the derived categorical `mode_requested` is updated to match the value the corrected classifier produces for the same source observable. Any external auditor recomputing the categorical from the preserved raw observable would arrive at the same value.
+
+**Action taken**
+
+- Pre-check on the production database:
+
+  ```sql
+  SELECT COUNT(*) AS n_rows_to_reclassify
+  FROM ans_cctp_v2_message_attestations
+  WHERE mode_requested = 'fast'
+    AND min_finality_threshold_requested = 0;
+  ```
+
+  Result: 806 rows. The cohort covers the entire production lifetime of the V2 collector since 2026-05-27 (six days), consistent with the observed Fast-traffic rate.
+
+- Remediation statement applied to Supabase:
+
+  ```sql
+  UPDATE ans_cctp_v2_message_attestations
+  SET mode_requested = 'other'
+  WHERE mode_requested = 'fast'
+    AND min_finality_threshold_requested = 0;
+  ```
+
+  806 rows updated. Distribution of `mode_requested` over the last two hours after the update:
+
+  | mode_requested | n |
+  |---|---|
+  | fast | 124 |
+  | other | 87 |
+  | standard | 70 |
+
+- The CCTP V2 collector service was restarted (`systemctl restart invarians-cctp-v2.service`), forcing an immediate aggregation cycle that recomputed `ans_cctp_v2_route_signals` rows from the corrected message-level table.
+
+**Verification**
+
+The first aggregation cycle after the restart produced 19 route_signals rows in 4.87 seconds. Live `/v2/panel` evaluation immediately after:
+
+| corridor | state | status | fast_n | fast_fb |
+|---|---|---|---|---|
+| ethereum-polygon/cctp | BS1 | OK | 8 | 0.000 |
+| arbitrum-ethereum/cctp | BS1 | OK | 32 | 0.000 |
+| base-ethereum/cctp | BS1 | OK | 7 | 0.000 |
+| ethereum-arbitrum/cctp | BS1 | OK | 11 | 0.000 |
+| ethereum-base/cctp | BS1 | OK | 9 | 0.000 |
+| polygon-ethereum/cctp | null | UNAVAILABLE | 3 | (n_eligible < 5) |
+| avalanche-ethereum/cctp | null | UNAVAILABLE | 1 | (n_eligible < 5) |
+| ethereum-avalanche/cctp | null | UNAVAILABLE | 2 | (n_eligible < 5) |
+| ethereum-optimism/cctp | null | UNAVAILABLE | 1 | (n_eligible < 5) |
+| optimism-ethereum/cctp | null | UNAVAILABLE | 1 | (n_eligible < 5) |
+
+All previously reported BS2 verdicts on the BASE corridors and on ethereum-polygon are resolved to BS1. The corridors that fall in `UNAVAILABLE` do so under I4 (`n_eligible >= 5`) as specified in `bridge_state_methodology.md` v1.1 §3.5; they are not BS2 by default.
+
+**Status:** Data remediation applied and verified. The Fast cohort denominator now contains only explicitly Fast-requested messages.
+**Confidence:** HIGH. The cohort definition before and after the UPDATE is `min_finality_threshold_requested = 0`; the only column modified is the derived categorical `mode_requested`; the SQL statement is idempotent (running it again is a no-op). Raw fields are preserved for full auditability.
+**Limitation:** `ans_cctp_v2_route_signals` rows aggregated under the buggy classifier between 2026-05-27 and 2026-06-01 are kept as-is. Any consumer running a post-mortem on the BS verdicts of that period must be aware that the underlying Fast cohort definition changed at the timestamp of this remediation.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*
