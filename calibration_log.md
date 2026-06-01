@@ -2187,5 +2187,68 @@ The three public keys (same as v1.0) are recorded under `signatures/public_keys/
 
 ---
 
+## Entry #045: Mode-classification bug — `min_finality_threshold = 0` was treated as Fast
+
+**Type:** Implementation bug fix on the source-side mode classifier. No change to `BRIDGE_STATE_STRUCTURAL_v1.1` methodology — the spec is correct; the Rust function that translates the raw protocol parameter into the categorical `mode_requested` field was over-broad.
+**Surface:** `bridge/cctp-v2-collector/src/routes.rs::classify_mode_requested`. Affects every row inserted into `ans_cctp_v2_message_attestations` from now on, and indirectly every aggregation row in `ans_cctp_v2_route_signals`.
+**Trigger:** First live evaluation of `BRIDGE_STATE_STRUCTURAL_v1.1` against the production database reported three corridors in `BS2` with `mode_fallback_rate` between 12.5 % and 79.8 % (ethereum-polygon, base-ethereum, ethereum-base, plus 100 % artefacts on polygon-ethereum and avalanche-ethereum). The pattern was uniform: every reported fallback had `min_finality_threshold_requested = 0` and `min_finality_threshold_executed = 2000`, with average latency in the Standard nominal envelope (~17 min). Cross-tabulation `(req, exec)` showed: messages with `req = 1` or `req = 1000` were always executed at `1000` (Fast nominal); messages with `req = 0` were always executed at `2000` (Standard nominal). No mixed pattern, no genuine Fast→Standard escalation observed across any of the four BASE-corridor or POL-corridor BS2-reporting routes.
+
+---
+
+**Reasoning**
+
+CCTP V2 exposes a per-message `minFinalityThreshold` parameter on the source-chain `depositForBurn` call. Circle documentation frames the field as follows: a low value (1..=1000) signals a Fast Transfer request, a high value (2000) signals a Standard Transfer request, and the absence of an explicit preference manifests on-chain as `minFinalityThreshold = 0`. Circle's attestation pipeline treats `0` as "any finality"; in practice it delivers Standard (hard finality) for those messages, since that is the safer default and does not require the additional Fast-transfer infrastructure path.
+
+The classifier `classify_mode_requested(u32)` was written with a single inequality:
+
+```rust
+if min_finality_threshold <= 1000 { "fast" }
+else if min_finality_threshold == 2000 { "standard" }
+else { "other" }
+```
+
+This treats `0` as `"fast"` because `0 ≤ 1000`. The classifier is mechanically correct on the inequality but semantically over-broad: a message with `minFinalityThreshold = 0` did not request Fast. The caller expressed no preference, and Circle's default behavior is Standard. Counting these messages in the Fast cohort and subsequently observing their Standard execution as "fallback" is a measurement artefact, not a protocol event.
+
+Production observation on the BASE corridor confirmed the pattern unambiguously: 79 of 89 Fast-classified messages on `ethereum→base` and `base→ethereum` over the prior two hours had `req = 0` and `exec = 2000`, with no exception. The 10 messages with `req ∈ {1, 1000}` were all executed at `exec = 1000`. There is no genuine Fast→Standard escalation on the corridor; the protocol is honoring the request type it was given. The `BS2` verdicts produced under `BRIDGE_STATE_STRUCTURAL_v1.1` I2 (`mode_fallback_rate ≤ 0.05`) on these corridors are therefore false positives caused by the upstream classification.
+
+The methodology of `BRIDGE_STATE_STRUCTURAL_v1.1` is not at fault. Its specification of I2 implicitly assumes that `mode_requested = 'fast'` denotes an explicit Fast request. The implementation that produces that label must enforce the same implicit semantic.
+
+**Action taken**
+
+- `classify_mode_requested` is updated to a `match` expression with an explicit handling of the `0` case:
+
+  ```rust
+  match min_finality_threshold {
+      0           => "other",       // no preference; not a Fast request
+      1..=1000    => "fast",        // explicit Fast request
+      2000        => "standard",    // explicit Standard request
+      _           => "other",       // atypical, excluded from corridor scope
+  }
+  ```
+
+- The same function is reused on `finality_threshold_executed` (from Iris) to derive `mode_executed`. Iris returns only `1000`, `2000`, or `NULL` in practice; the new `0 → "other"` branch is therefore observed exclusively on the source-side requested threshold and does not change `mode_executed` for any historical or future row.
+
+- The collector is rebuilt and redeployed. From the next cycle on, messages with `min_finality_threshold_requested = 0` are inserted with `mode_requested = 'other'`. They no longer contribute to the Fast denominator nor to the Standard denominator of any subsequent aggregation row. The Edge Function filters on `mode_requested IN ('fast', 'standard')` and ignores `'other'`, so the `BridgeEntry` evaluation under `BRIDGE_STATE_STRUCTURAL_v1.1` no longer sees those messages.
+
+**Historical data**
+
+Past rows in `ans_cctp_v2_message_attestations` with `mode_requested = 'fast'` and `min_finality_threshold_requested = 0` remain unchanged for reproducibility of the production observation that triggered this entry. They are tagged for analysts via the raw field; consumers running ad-hoc cohort analyses should filter accordingly. Past rows in `ans_cctp_v2_route_signals` aggregated over the affected window are kept as-is; the next cycle of the aggregator produces corrected rows and the false-positive BS2 verdicts disappear within one observation interval.
+
+**Verification**
+
+Three Supabase Studio queries documented the bug end-to-end on 2026-06-01:
+
+1. Distribution of `min_finality_threshold_executed` over the last 6 hours, all corridors: 1000 → fast (284 rows), 2000 → standard (400 rows), NULL (20 rows). Iris returns only canonical values; no malformed input.
+2. BASE-corridor Fast-requested distribution over the last 2 hours grouped by `(mode_executed, req_thr, exec_thr)`: 79 rows at `(req=0, exec=2000)` versus 22 rows at `(req∈{1,1000}, exec=1000)`. No mixed pattern.
+3. Sample of ten Fast→Standard "escalated" rows on the BASE corridor: every single row carried `req_thr = 0`, latency in the 800-1200 s range (Standard nominal), no genuine fallback.
+
+After redeployment, the same three queries on a one-hour-fresh window must show `mode_requested = 'other'` for `req = 0` rows and `mode_fallback_rate` at zero on the BASE corridor (no remaining "fallback" once the artefact is removed).
+
+**Status:** Patch applied to source, redeployed on the production collector VPS. The next aggregation cycle (interval 600 s) writes corrected rows. The Edge Function code is unchanged; only the upstream classification changes.
+**Confidence:** HIGH. The cross-tabulation `(req, exec)` is unambiguous: the bug is mechanical, the fix is mechanical, no statistical inference is required.
+**Limitation:** Aggregation rows already written with the buggy classifier remain in `ans_cctp_v2_route_signals`. They are not retroactively recomputed. Any consumer running a post-mortem on the BS2 verdicts of 2026-06-01 should be aware of the discontinuity at the redeployment timestamp.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*
