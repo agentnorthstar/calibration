@@ -2119,5 +2119,73 @@ The signers of `BRIDGE_STATE_STRUCTURAL_v1` are independent of the signers of th
 
 ---
 
+## Entry #044: Methodology amendment v1.0 to v1.1 — SLA gating on denominators of I1 and I2
+
+**Type:** Methodology amendment, follow-up to Entry #043 (BRIDGE_STATE_STRUCTURAL_v1 locked) and to first-production observation of the structural rule against the live `ans_cctp_v2_route_signals` rows.
+**Surface:** `bridge_state_methodology.md` v1.0 to v1.1, prospective patch to `bridge/cctp-v2-collector/src/aggregator.rs`, no immediate SDK change.
+**Trigger:** First live evaluation of the structural rule against the production database revealed a denominator bias in the observables that back invariants I1 (`attestation_success_rate`) and I2 (`mode_fallback_rate`). The aggregator computes both ratios over the full 1-hour window of `ans_cctp_v2_message_attestations`, including messages whose nominal attestation envelope has not yet elapsed at observation time. A Fast message burnt eight seconds ago is `attested = false` not because the protocol failed but because the message is in flight; counting it in the denominator drives the ratio toward zero on low-volume routes and produces false-positive BS2 verdicts. The bias was confirmed against the live panel: ten of ten CCTP V2 corridors with healthy Iris (`circle_api_status = OK`, `confounded_by_iris_downtime = false`) reported `attestation_success_rate` between 0.60 and 0.89 on routes with two to nine recent messages — values inconsistent with the absence of any documented degradation in the corresponding window.
+
+---
+
+**Reasoning**
+
+I1 and I2 are invariants on the protocol's *contract*, not on instantaneous snapshots. The protocol's contract is *messages of mode `m` shall be attested within their nominal envelope*. A message younger than the nominal envelope is neither attested nor in default; it is in-flight. Including it in the denominator of either ratio treats normal in-flight messages as failures.
+
+The fix is to gate both denominators by a per-mode SLA, fixing the SLA values mechanically before observing the production data:
+
+| Mode | `SLA_mode` | Justification |
+|---|---|---|
+| Fast | 120 s | Nominal envelope 8-30 s per Circle CCTP V2 docs. Margin x4 over upper bound. |
+| Standard | 7200 s (2 h) | Nominal envelope 13-19 min (Ethereum-side originator) to 30-60 min (Polygon-side originator). Margin x2 over worst-case nominal upper bound. |
+
+Only messages with `source_block_timestamp < NOW() - SLA_mode` are eligible for the I1 and I2 computations. Messages younger than `SLA_mode` are excluded from the denominator.
+
+The revised formulas are:
+
+```
+attestation_success_rate = COUNT(attested AND source_block_ts < NOW() - SLA_mode)
+                         / COUNT(source_block_ts < NOW() - SLA_mode)
+
+mode_fallback_rate       = COUNT(mode_requested = 'fast'
+                                 AND source_block_ts < NOW() - SLA_fast
+                                 AND mode_executed = 'standard')
+                         / COUNT(mode_requested = 'fast'
+                                 AND source_block_ts < NOW() - SLA_fast
+                                 AND mode_executed IS NOT NULL)
+```
+
+The denominators may be zero for low-volume corridors within a 1-hour aggregation window, in which case the row returns NULL on the affected observable and the structural rule resolves the direction's verdict on the other mode (or to UNAVAILABLE if neither mode has an eligible sample).
+
+I4 (`n_observations >= 5`) is interpreted on the post-gating `n_eligible` count, not on the raw window count. The 1-hour aggregation window itself is unchanged; only the denominators of I1 and I2 are gated.
+
+**Action taken**
+
+- `bridge_state_methodology.md` amended to v1.1 with the addition of §3.5 (SLA gating). Hash recomputed; the v1.0 hash `65357b46a0f0c9ed51ec61f87833f168e88c7904211b7729506b30be2fef21e2` is superseded by the v1.1 hash `0733932048d3fc539f5a938a505fd02f2589b1ea839f26273ec36a57ea33737d`. The v1.0 signatures and OpenTimestamps proofs remain valid for the v1.0 state of the document; they are preserved in `signatures/bridge_state_methodology.md.sig.{1,2,3}` and the associated `.ots` files.
+- v1.1 locked with three independent Ed25519 signatures in namespace `invarians_calibration_bridge_state_structural_v1_1` using the same three keys as v1.0 (`ed25519_bs_structural_v1_{1,2,3}.pub`). Signatures stored at `signatures/bridge_state_methodology.md.v1_1.sig.{1,2,3}` and OpenTimestamps-anchored on Bitcoin (`signatures/bridge_state_methodology.md.v1_1.sig.{1,2,3}.ots`).
+
+**Action pending (deployment phase)**
+
+- Patch `bridge/cctp-v2-collector/src/aggregator.rs` to apply the SLA gating in the SQL CTE. The constants `SLA_FAST_SECS = 120` and `SLA_STANDARD_SECS = 7200` are hardcoded in the Rust module to match v1.1.
+- Recompile the Rust collector and redeploy the `invarians-cctp-v2-collector` systemd service on the VPS.
+- The next aggregation cycle (10 min interval) begins writing corrected `attestation_success_rate` and `mode_fallback_rate` values into `ans_cctp_v2_route_signals`. The Edge Function code does not change; only the upstream values change.
+
+**Verification protocol for external readers**
+
+```
+ssh-keygen -Y verify -f <allowed_signers> -I invarians_bs_structural_v1_1_signer_<i> \
+  -n invarians_calibration_bridge_state_structural_v1_1 \
+  -s signatures/bridge_state_methodology.md.v1_1.sig.<i> < bridge_state_methodology.md
+
+ots verify signatures/bridge_state_methodology.md.v1_1.sig.<i>.ots
+```
+
+The three public keys (same as v1.0) are recorded under `signatures/public_keys/ed25519_bs_structural_v1_{1,2,3}.pub`. The namespace `invarians_calibration_bridge_state_structural_v1_1` distinguishes v1.1 signatures from v1.0 signatures cryptographically.
+
+**Status:** Methodology v1.1 locked and published. Collector patch deferred to a separate commit once the Rust changes are written and tested.
+**Confidence:** HIGH. The SLA values 120 s (Fast) and 7200 s (Standard) are mechanically justified by the Circle CCTP V2 documented nominal envelopes plus an explicit operational margin (x4 and x2 respectively). Both values are pre-engaged before any aggregator change is observed against the production database.
+**Limitation:** SLA gating reduces the post-gating sample size on low-volume corridors. Routes with fewer than five messages older than `SLA_mode` within a 1-hour window will report `UNAVAILABLE` on the mode-specific evaluation. This is the intended behavior: a route with insufficient eligible sample is not classifiable, not classifiable as BS1 by default.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

@@ -1,7 +1,7 @@
 ---
 title: "Invarians — Bridge State Methodology (CCTP V2 and CCIP V1.5 / V1.6)"
-version: "1.0-draft"
-status: draft
+version: "1.1"
+status: published
 audience: [ai-agents, developers, researchers, auditors]
 ---
 
@@ -65,6 +65,49 @@ otherwise                               ⇒ BS2
 **I3, `confounded_by_iris_downtime == false`.** The flag is raised by the collector when Iris consecutive failures during the aggregation window exceed an upstream threshold. A raised flag means the latency distribution observed in the window is not a valid measurement of the protocol's behavior, only of the instrument's. The state is `UNAVAILABLE`, not `BS2`: an unavailable instrument is distinct from a broken protocol.
 
 **I4, `n_observations >= 5`.** Below five attested messages in the window, a single failure pushes `attestation_success_rate` to 0.8, which is statistically meaningless as a signal but would mechanically trigger `BS2` under I1. The minimum sample size of 5 is chosen as the smallest value at which a single failure ratio (1/5 = 0.20) is large enough to be a real signal rather than noise from low traffic. Below 5 messages, the state is `UNAVAILABLE`.
+
+### 3.5 SLA gating on the denominators of I1 and I2 (added in v1.1)
+
+The observables `attestation_success_rate` and `mode_fallback_rate` are computed by the collector on a rolling 1-hour window of message rows. A naive implementation that divides *attested messages* by *all observed messages in the window* is biased toward zero whenever the window contains messages whose nominal attestation envelope has not yet elapsed: a Fast message burnt eight seconds ago is `attested = false` at observation time but is not a failure of the protocol contract; it is in flight within its envelope. Including it in the denominator counts a still-pending message as a defect.
+
+To eliminate this bias, both invariants are gated on a per-mode SLA. Only messages whose source-chain block timestamp lies more than `SLA_<mode>` in the past are considered *eligible* for the invariant computation. Messages younger than `SLA_<mode>` are excluded from the denominator. This makes the observables measurements of *protocol contract violation* rather than *latency snapshot at this second*.
+
+The two SLA values are pre-engaged in this protocol:
+
+| Mode | `SLA_mode` (seconds) | Justification |
+|---|---|---|
+| Fast | 120 | The Fast nominal envelope per Circle documentation is 8-30 seconds. The `SLA_fast = 120 s` admits a margin of four times the upper bound of the nominal envelope. Beyond 120 seconds, a Fast message that has neither been attested nor escalated to Standard is a real contract violation. |
+| Standard | 7200 | The Standard nominal envelope ranges from 13-19 minutes for Ethereum-originated transfers (two-epoch finality plus Iris attestation) to 30-60 minutes for Polygon-originated transfers (Heimdall checkpoint plus Ethereum finality plus Iris attestation). The `SLA_standard = 7200 s` (two hours) covers the worst-case Polygon-side nominal envelope with a margin of two times. Beyond 7200 seconds, a Standard message that has not been attested is a real contract violation. |
+
+The revised definitions of `attestation_success_rate` and `mode_fallback_rate` are:
+
+```
+n_eligible            = COUNT(*) FILTER (
+                          source_block_timestamp < NOW() - SLA_mode
+                        )
+n_attested_eligible   = COUNT(*) FILTER (
+                          attested AND source_block_timestamp < NOW() - SLA_mode
+                        )
+attestation_success_rate = n_attested_eligible / n_eligible    (NULL if n_eligible = 0)
+
+n_fast_resolved       = COUNT(*) FILTER (
+                          mode_requested = 'fast'
+                          AND source_block_timestamp < NOW() - SLA_fast
+                          AND mode_executed IS NOT NULL
+                        )
+n_fast_escalated      = COUNT(*) FILTER (
+                          mode_requested = 'fast'
+                          AND source_block_timestamp < NOW() - SLA_fast
+                          AND mode_executed = 'standard'
+                        )
+mode_fallback_rate    = n_fast_escalated / n_fast_resolved     (NULL if n_fast_resolved = 0)
+```
+
+The invariant `n_observations >= 5` of I4 is interpreted on `n_eligible`, not on the raw window count: with the gating, fewer messages are eligible for the computation, and the sample-sufficiency check applies to the post-gating denominator. When `n_eligible < 5`, the row contributes `UNAVAILABLE` to the direction's verdict.
+
+The 1-hour aggregation window of the collector is retained as the *temporal scope* of all other observables (latency percentiles, message counts, fee distributions). The SLA gating modifies only the denominator of I1 and I2; the window itself is unchanged. A consequence is that Standard-mode classification can be `UNAVAILABLE` on low-volume corridors where the count of messages older than `SLA_standard` within a 1-hour window is below five: the direction's verdict then rests on the Fast-mode evaluation alone, which is the intended behavior and is consistent with the combine rule of §2.
+
+### Note on a reorg-tracking invariant
 
 ### Note on a reorg-tracking invariant
 
@@ -155,5 +198,6 @@ The signing acts and the Bitcoin block anchor are the authoritative cryptographi
 
 ---
 
-*Draft 1.0 — successor to methodology.md §13 (statistical P97-on-latency, retired for CCTP V2 and CCIP V1.5 / V1.6 active scope).*
+*v1.0: initial publication — successor to methodology.md §13 (statistical P97-on-latency, retired for CCTP V2 and CCIP V1.5 / V1.6 active scope).*
+*v1.1: §3.5 added — SLA gating on the denominators of I1 (`attestation_success_rate`) and I2 (`mode_fallback_rate`). Pre-engaged SLA values: `SLA_fast = 120 s`, `SLA_standard = 7200 s`. The change closes a denominator bias of v1.0 that counted messages still inside their nominal envelope as defects. I4 (`n_observations >= 5`) is now applied to the post-gating `n_eligible` count. The 1-hour aggregation window is unchanged.*
 *Lock condition: three Ed25519 signatures + OpenTimestamps Bitcoin stamp, before any production migration referencing `BRIDGE_STATE_STRUCTURAL_v1` is applied.*
