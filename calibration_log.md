@@ -2474,5 +2474,86 @@ The discrepancy is recorded here and not amended back into the pre-engagement do
 
 ---
 
+## Entry #049: BS_STRUCTURAL_PRECURSORS_v2 — execution against the 2025 ETH-POL CCTP V2 corpus, empty survivor set on extended feature space
+
+**Type:** Empirical result of `BS_STRUCTURAL_PRECURSORS_v2`. Successor to Entry #048 (`BS_STRUCTURAL_PRECURSORS_v1`). No code change beyond the locked v2 script, no methodology change.
+**Surface:** `corpus-2025/eth-pol-CCTP-v2/results/BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2_v2.json` (signed). The script `corpus-2025/eth-pol-CCTP-v2/scripts/compute_bs_structural_precursors_v2.py` is executed against the locked corpus parquets.
+**Trigger:** Lock of the v2 pre-engagement with three Ed25519 signatures under namespace `invarians_calibration_bs_structural_precursors_v2` and OpenTimestamps Bitcoin anchor (cf. commit on `PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v2.md` at the root of this repository). The v1 empty survivor set was scoped to a single predictor representation (SMD-of-shift). v2 extends the predictor space to cover the three mechanically distinct representations available in the locked Step 3 baseline parquet.
+
+---
+
+**Execution outputs**
+
+The protocol is implemented by `compute_bs_structural_precursors_v2.py` (SHA-256 recorded in the output JSON) on the same locked Step 3 corpus as v1. The script reuses verbatim the outcome reconstruction of v1 (paired source-destination CCTP V2 messages via on-chain nonce, classifier v1.1, SLA gating). The configuration grid is extended as follows:
+
+| Family | Representation | Count |
+|---|---|---|
+| F0a | A — SMD of shift (verbatim v1) | 480 |
+| F0b | B — Signed shift level, polarity-separated tails | 960 |
+| F0c | C — Drift composite level, polarity-separated tails | 384 |
+| F1 | A — Multi-axis grouped, voting (verbatim v1) | 224 |
+| F4 | A — Cross-chain (verbatim v1) | 80 |
+| **Total** | | **2 128** |
+
+| Field | Value |
+|---|---|
+| Paired ETH-POL messages | 6 583 |
+| `mode_requested = 'fast'` (post v1.1 classifier) | 3 098 |
+| `bs2_eth_to_pol_fast` evaluable hours (n_eligible ≥ 5) | 4 |
+| `bs2_pol_to_eth_fast` evaluable hours (n_eligible ≥ 5) | 2 |
+| Configuration grid total | 2 128 |
+| Configurations at raw `placebo_p < 0.05` | 0 |
+| Configurations surviving BH within-family FDR `α = 0.05` | 0 |
+| Configurations surviving combined FDR AND lift ≥ 1.5× | 0 |
+| Survivor set | `[]` (empty) |
+
+Every configuration is flagged `INSUFFICIENT_POWER` because `n_positive_outcomes < 10` on both Fast triplets. The FDR family is therefore empty across all 2 128 configurations.
+
+The output JSON `BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2_v2.json` is locked with three Ed25519 signatures under namespace `invarians_calibration_bs_structural_precursors_v2_output` (`signatures/BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2_v2.json.sig.{1,2,3}`), each OpenTimestamps-anchored on Bitcoin.
+
+**Reading — joint interpretation of v1 and v2**
+
+v1 and v2 share the same outcome density on the corpus: six evaluable hours over 4 968. v2 extends the predictor space by a factor of 2.7× (784 → 2 128 configurations) covering the three mechanically distinct representations of the substrate matrix that the locked Step 3 baseline produces:
+
+```
+A — SMD of shift             |shift(t)| - |shift(t-1)|   (rate of change of absolute deviation)
+B — Signed shift level       shift(t)                    (deviation itself, with polarity)
+C — Drift composite level    drift_<axis-type>(t)        (axis-aggregated deviation)
+```
+
+The empty survivor set survives the extension. The mechanism is the power constraint, not the predictor coverage: regardless of the representation chosen, the post-`INSUFFICIENT_POWER` FDR family is empty because fewer than ten Fast-mode hours in the corridor-active window have a sample sufficient (n_eligible ≥ 5) to evaluate the outcome.
+
+The joint interpretation is therefore:
+
+```
+On the 2025 ETH-POL CCTP V2 corpus, under BRIDGE_STATE_STRUCTURAL_v1.1
+with a 1-hour aggregation window and the corpus-2025 Fast-traffic profile,
+the substrate matrix (in any of the three representations available
+from the locked Step 3 baseline) cannot be evaluated as a predictor of
+the protocol-contract BS2 outcome because the outcome itself is too sparse
+within the window for the statistical machinery to operate.
+```
+
+This is a "no data" result, not a "no signal" result. The pre-engagement protocol explicitly anticipates this case (cf. v2 §10.2 and v1 §10.2): the empty survivor set is the legitimate output when statistical power is insufficient. v1 and v2 jointly close the substrate-shift evaluation on the 2025 ETH-POL CCTP V2 corpus under the present outcome definition and window.
+
+**Implications**
+
+1. The substrate-matrix → `BRIDGE_STATE_STRUCTURAL_v1.1 BS2` mapping is empirically undetermined on this corpus. No directional claim is supported by the data.
+2. The earlier latency-outcome candidates (nineteen substrate-shift configurations published in the corpus matrix-and-drift article) remain valid against their original latency-derived outcome but are silent on the structural outcome.
+3. To obtain a statistically operative evaluation, three independent avenues exist:
+   - **Wider aggregation window.** A protocol variant evaluating the outcome on a 3-hour or 6-hour window would raise the per-window `n_eligible` count and make Standard-mode triplets evaluable in parallel with Fast. The variant requires its own locked pre-engagement (`BS_STRUCTURAL_PRECURSORS_v3` for window 3h, `_v4` for 6h, etc.); it changes the operational semantics of the outcome and therefore is a distinct protocol from v1.1 in production.
+   - **Longer-corpus successor.** Cumulative live data from the production `ans_cctp_v2_route_signals` table since 2026-05-27 (V2 collector deployment) provides a continuously growing observation window. A successor protocol evaluating substrate-shift precursors against the production-database outcome — once the cumulative volume reaches a few hundred BS2-positive hours — would have the statistical power that the 2025 corpus alone cannot provide.
+   - **Higher-volume corridor.** The ETH-ARB, ETH-BASE, ETH-OP CCTP V2 corridors have substantially higher Fast-mode traffic than ETH-POL. Each requires its own locked corpus (extraction, decode, signing) and its own pre-engaged protocol. The first such corpus to be built will likely yield the first non-power-limited evaluation of substrate → BS_STRUCTURAL.
+
+**Discrepancy on the configuration grid total — verified**
+
+v2 reports `n_configurations_total = 2 128`, matching the spec §5 sum of `480 + 960 + 384 + 224 + 80 = 2 128`. No discrepancy between spec and code in v2, in contrast to v1 (cf. Entry #048).
+
+**Status:** Locked and published. The signed empty survivor set is the final result of the v2 evaluation on the 2025 ETH-POL CCTP V2 corpus. Combined with v1, the substrate-matrix → BS_STRUCTURAL evaluation is closed on this corpus.
+**Confidence:** N/A on individual predictions (no survivor); HIGH on the methodological discipline of the run.
+**Limitation:** The corpus-2025 outcome density on a 1-hour window does not support statistical evaluation. Any forward-looking decision on substrate-shift precursors against `BS_STRUCTURAL_v1.1` requires a different corpus, a different window, or a different outcome density profile, each formalized in a fresh pre-engagement.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*
