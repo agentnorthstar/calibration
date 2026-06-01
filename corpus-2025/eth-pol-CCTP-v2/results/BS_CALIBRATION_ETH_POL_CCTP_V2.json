@@ -1,0 +1,66 @@
+{
+  "calibration_window_end_utc": "2025-12-31T23:59:00Z",
+  "calibration_window_start_utc": "2025-06-09T18:45:00Z",
+  "corpus_reference": "ETH-POL-CCTP-V2 publiable corpus, MANIFEST.md sha-256 adb8808645b07a981cb60cfdf56d0327d1fff88778b65f5b70d6e81e92a08349",
+  "input_parquets_sha256": {
+    "CCTP_V2_MAINNET_LAUNCH_2025_03_11.parquet": "07f8fa74995ebb2e77d78f0af8a27714f40ea92f9656e67f3fafac650cb38ab8",
+    "CCTP_V2_POLYGON_DEPLOYMENT_2025_06.parquet": "41ca40d8f931ec74bc44515180a353b1fe4cf41f731bdd200614b8bb305698db",
+    "ETH_BPO1_MAINNET_2025_12_09.parquet": "d3c259e7df6f35b9f2902d445ca00753e5137a63a8a223b163e50a90215eda5e",
+    "ETH_FUSAKA_MAINNET_2025_12_03.parquet": "1c1884e0d42c84ed801391eabbe1a1d01532ad527f0a1dbeec918e6b2c816940",
+    "ETH_KILN_MASS_VALIDATOR_EXIT_2025_09_09.parquet": "4ae9c05d141ddd29a77ea0cec2704fadc696fd81fd1c5884a8983ec7a4cf86aa",
+    "ETH_PECTRA_MAINNET_2025_05_07.parquet": "0c5acf44c587cc46c97f2e96a24a44dbd092df4f020259d75a4766e113c34f4e",
+    "ETH_SSV_MASS_SLASHING_2025_09_10.parquet": "2cf77d221f0275eca6a55864c88c8851b5f29a644412532490acce1252d82ec7",
+    "POL_BOR_RPC_2025_12.parquet": "99039c456c163073efe2361964a5338a299248c8d9d3e91ef9a8b16ec7e5f178",
+    "POL_HEIMDALL_CONSENSUS_2025_07_30.parquet": "3fc9305937667a0df1de07d5badd2f570fe4976c7a5294c476c73714aa67abfa",
+    "POL_HEIMDALL_MILESTONE_2025_09_10.parquet": "88e64bd1916cb8c30645930faa607af990c6c9191f9a559430657ac4271de5d1",
+    "POL_HEIMDALL_V2_HARD_FORK_2025_09_16.parquet": "e178c9530cc175e8b42c12a522ae86d7159cd202007f8c264cf5654639dcab67",
+    "USDE_DEPEG_CASCADE_2025_10_10.parquet": "cee12bae571fa900fe94dc6ea12d6dc0c47661435ce5c7e5b772d7925e2a87d3",
+    "baseline.parquet": "85d15a681fe57e603d66aea353b75637a290dbe545f16109c0d244659a62b3d5",
+    "cctp_v2_events_2025_bigquery_extract.parquet": "42f3fd5e58519f4a89a8a086d534dee1fc7833f62f9ab3313cb57fda0e679f4f"
+  },
+  "method": "P97 of non-null hourly p90 latency, per (source, destination, mode), linear interpolation",
+  "protocol_version": "BS_CALIBRATION_v1",
+  "script_sha256": "f34feda79287d85419218f59c5e26e436918e87557ba3c34ac209af63f7dc761",
+  "thresholds": [
+    {
+      "bridge_id": "ethereum-polygon/cctp/fast",
+      "confidence": "HIGH",
+      "destination": "polygon",
+      "mode": "Fast",
+      "n_buckets_non_null": 1408,
+      "n_buckets_total_in_window": 4925,
+      "source": "ethereum",
+      "threshold_bs1_s": 1132.79
+    },
+    {
+      "bridge_id": "ethereum-polygon/cctp/standard",
+      "confidence": "HIGH",
+      "destination": "polygon",
+      "mode": "Standard",
+      "n_buckets_non_null": 1449,
+      "n_buckets_total_in_window": 4925,
+      "source": "ethereum",
+      "threshold_bs1_s": 12201.55999999997
+    },
+    {
+      "bridge_id": "polygon-ethereum/cctp/fast",
+      "confidence": "HIGH",
+      "destination": "ethereum",
+      "mode": "Fast",
+      "n_buckets_non_null": 956,
+      "n_buckets_total_in_window": 4925,
+      "source": "polygon",
+      "threshold_bs1_s": 1115.15
+    },
+    {
+      "bridge_id": "polygon-ethereum/cctp/standard",
+      "confidence": "HIGH",
+      "destination": "ethereum",
+      "mode": "Standard",
+      "n_buckets_non_null": 769,
+      "n_buckets_total_in_window": 4925,
+      "source": "polygon",
+      "threshold_bs1_s": 78523.85200000003
+    }
+  ]
+}

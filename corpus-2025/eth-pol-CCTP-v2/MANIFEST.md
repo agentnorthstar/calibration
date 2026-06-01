@@ -173,6 +173,88 @@ Each signature must yield `Good "invarians_corpus_eth_pol_cctp_v2_step3" signatu
 
 ---
 
+## Step 4-bis, Bridge State Calibration (ex-ante)
+
+Step 4-bis is a downstream calibration applied to the locked Step 3 corpus. It produces the four ETH-POL CCTP V2 bridge state thresholds intended for seeding the production `bridge_thresholds` table. The protocol is signed independently of Step 3 and does not modify any Step 0 to Step 3 artefact.
+
+### Pre-engagement contract
+
+The pre-engagement document fixes the calibration window, the quantile, the bucket inclusion rule, the confidence partition, the schema convention, and the live confirmation protocol. It is locked before execution of the calibration script.
+
+| Field | Value |
+|---|---|
+| Artefact | `PRE_ENGAGEMENT_BS_CALIBRATION_v1.md` |
+| SHA-256 | `8418e6d7437baf0fc7a4561f59318bbc095387319a19ab5e26cf8da2bc54bd61` |
+| Byte length at hash | 12 520 bytes |
+| Signature namespace | `invarians_corpus_eth_pol_cctp_v2_step4bis_pre_engagement` |
+| Ed25519 signature 1 (primary) | `signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.1`, 367 bytes, public key `signatures/public_keys/ed25519_step4bis_1.pub`, key fingerprint `SHA256:t0HLiUzQmfaxeFGUxFB7/eGcTO6nMaEZWomsbnpHNKU`, verified Good |
+| Ed25519 signature 2 (secondary) | `signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.2`, 367 bytes, public key `signatures/public_keys/ed25519_step4bis_2.pub`, key fingerprint `SHA256:T58pqVuMRW2E8NtaxKpKpjoPutw3TtAkpDtNcw8cHT0`, verified Good |
+| Ed25519 signature 3 (tertiary) | `signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.3`, 367 bytes, public key `signatures/public_keys/ed25519_step4bis_3.pub`, key fingerprint `SHA256:Yq4jTD7AzTwSgD/TPDgNCT+Yk7Prn60mBbAmXAk6lUo`, verified Good |
+| OpenTimestamps Bitcoin proof files | `signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.{1,2,3}.ots` |
+| Bitcoin block confirmation height | `<pending until ots upgrade>` |
+| Status | `<locked / pending signing>` |
+
+### Calibration script
+
+The script implements the pre-engagement strictly. Its SHA-256 is self-reported in the calibration output for byte-for-byte reproducibility.
+
+| Field | Value |
+|---|---|
+| Artefact | `scripts/compute_bs_calibration_v2.py` |
+| SHA-256 | `f34feda79287d85419218f59c5e26e436918e87557ba3c34ac209af63f7dc761` |
+| Byte length at hash | 7 079 bytes |
+
+### Calibration output
+
+The output JSON encodes the four threshold rows, the input parquet hashes, the script hash, the calibration window bounds, and the protocol identifier.
+
+| Field | Value |
+|---|---|
+| Artefact | `results/BS_CALIBRATION_ETH_POL_CCTP_V2.json` |
+| SHA-256 | `97198ee0f65c1121118eaf25525e365e7b2f86f83f736073ddd86115dc6bf041` |
+| Byte length at hash | 3 298 bytes |
+| Signature namespace | `invarians_corpus_eth_pol_cctp_v2_step4bis_output` |
+| Ed25519 signature 1 (primary) | `signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.1`, public key `signatures/public_keys/ed25519_step4bis_1.pub`, key fingerprint `SHA256:t0HLiUzQmfaxeFGUxFB7/eGcTO6nMaEZWomsbnpHNKU` |
+| Ed25519 signature 2 (secondary) | `signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.2`, public key `signatures/public_keys/ed25519_step4bis_2.pub`, key fingerprint `SHA256:T58pqVuMRW2E8NtaxKpKpjoPutw3TtAkpDtNcw8cHT0` |
+| Ed25519 signature 3 (tertiary) | `signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.3`, public key `signatures/public_keys/ed25519_step4bis_3.pub`, key fingerprint `SHA256:Yq4jTD7AzTwSgD/TPDgNCT+Yk7Prn60mBbAmXAk6lUo` |
+| OpenTimestamps Bitcoin proof files | `signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.{1,2,3}.ots` |
+| Bitcoin block confirmation height | `<pending until ots upgrade>` |
+| Status | `<locked / pending signing>` |
+
+### Inputs consumed
+
+The script consumes the locked Step 3 parquets (their SHA-256 are listed in Step 3 above and are re-recorded by the script in the output JSON for self-contained provenance):
+
+- `results/per_event_sheets/baseline.parquet`
+- `results/per_event_sheets/*.parquet` (twelve per-event sheets, hot windows)
+
+The locked Step 2 raw extract `data/cctp_v2_events_2025_bigquery_extract.parquet` is hashed for provenance but is not read by the script.
+
+### Verification protocol for external readers
+
+```
+ssh-keygen -Y verify -f <allowed_signers> -I invarians_step4bis_signer_<i> \
+  -n invarians_corpus_eth_pol_cctp_v2_step4bis_pre_engagement \
+  -s signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.<i> < PRE_ENGAGEMENT_BS_CALIBRATION_v1.md
+
+ssh-keygen -Y verify -f <allowed_signers> -I invarians_step4bis_signer_<i> \
+  -n invarians_corpus_eth_pol_cctp_v2_step4bis_output \
+  -s signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.<i> < results/BS_CALIBRATION_ETH_POL_CCTP_V2.json
+
+ots verify signatures/PRE_ENGAGEMENT_BS_CALIBRATION_v1.md.sig.<i>.ots
+ots verify signatures/BS_CALIBRATION_ETH_POL_CCTP_V2.json.sig.<i>.ots
+```
+
+The Step 4-bis signers are independent of the Step 0/2/3 signers. The three public keys are recorded in `signatures/public_keys/ed25519_step4bis_{1,2,3}.pub` and their fingerprints are listed in the signature tables of this section.
+
+Reproduction of the calibration: any third party re-running `compute_bs_calibration_v2.py` against the Step 3 parquets must obtain a JSON output whose `thresholds[]` and `n_buckets_*` fields match the signed output byte-for-byte. The pre-engagement signature is the cryptographic record that the methodology of Sections 4 to 8 of `PRE_ENGAGEMENT_BS_CALIBRATION_v1.md` was fixed prior to the script run.
+
+### Lock condition
+
+Step 4-bis is locked when both the pre-engagement document and the JSON output carry three Ed25519 signatures and at least calendar-attested OpenTimestamps proofs, with the JSON output's `script_sha256` matching the script SHA-256 recorded in this section.
+
+---
+
 ## Final manifest hash
 
 The SHA-256 of this `MANIFEST.md` is computed at the instant Step 3 is sealed, with all Step 0 through Step 3 entries filled and this Final manifest hash section showing `pending`. The hash anchors the manifest state at that exact moment on Bitcoin via OpenTimestamps. After the stamp is created, this section is updated to record the hash and the OTS proof location; the update post-dates the cryptographic anchor and does not alter the OTS-attested state. The OTS proof file is therefore the cryptographic source of truth for the manifest hash; recomputing SHA-256 of `MANIFEST.md` after this section is filled will not match the recorded value, by self-reference design.
@@ -193,4 +275,15 @@ The SHA-256 of this `MANIFEST.md` is computed at the instant Step 3 is sealed, w
 
 Any modification of a locked artefact after its lock signature is recorded here, with the date, the modified artefact, the prior SHA-256, the new SHA-256, the new signature, and a brief description of the modification. The prior signature and hash are preserved so the chain of trust remains verifiable across amendments.
 
-(empty at manifest version 1)
+### Amendment, manifest version 2: Step 4-bis Bridge State Calibration
+
+| Field | Value |
+|---|---|
+| Modified artefact | `MANIFEST.md` |
+| Prior SHA-256 (Step 3 lock) | `70bded33332d2a116613bf16c81b303dcbb0c0b9d868d303829d4265308ebe85` (16,067 bytes, version 1, ancré OTS) |
+| New SHA-256 (Step 4-bis lock) | `<MANIFEST.md SHA-256 version 2>` |
+| New byte length | `<bytes>` |
+| Modification | addition of section "Step 4-bis, Bridge State Calibration (ex-ante)" between Step 3 and Final manifest hash, plus this Amendment entry. No prior section is altered. The Final manifest hash version 1 remains the OTS anchor for the Step 3 state of the manifest. |
+| OpenTimestamps proof file (manifest version 2) | `signatures/MANIFEST_v2.ots` |
+| Bitcoin block confirmation height | `<pending>` |
+| Status | `<locked / pending signing>` |
