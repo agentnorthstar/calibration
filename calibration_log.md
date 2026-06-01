@@ -2396,5 +2396,83 @@ When (and only when) the protocol is signed Ed25519 + OpenTimestamps anchored an
 
 ---
 
+## Entry #048: BS_STRUCTURAL_PRECURSORS_v1 — execution against the 2025 ETH-POL CCTP V2 corpus, empty survivor set
+
+**Type:** Empirical result of `BS_STRUCTURAL_PRECURSORS_v1`. Follow-up to Entry #047 (protocol drafted) and to the locked pre-engagement at `PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v1.md`. No code change, no methodology change.
+**Surface:** `corpus-2025/eth-pol-CCTP-v2/results/BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2.json` (signed). The script `corpus-2025/eth-pol-CCTP-v2/scripts/compute_bs_structural_precursors_v1.py` is executed against the locked corpus parquets.
+**Trigger:** Lock of the pre-engagement document with three Ed25519 signatures under namespace `invarians_calibration_bs_structural_precursors_v1` and OpenTimestamps Bitcoin anchor (cf. commit on `PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v1.md` and its `signatures/` artefacts at the root of this repository).
+
+---
+
+**Execution outputs**
+
+The protocol is implemented byte-for-byte by `compute_bs_structural_precursors_v1.py`. The script:
+
+1. Loads the locked Step 3 raw events parquet (`cctp_v2_events_2025_raw.parquet`, sha-256 recorded in the output JSON), pairs `MessageSent` against `MessageReceived` via on-chain `nonce` restricted to source/destination domains in `{(0, 7), (7, 0)}`, classifies `mode_requested` and `mode_executed` with the v1.1 classifier (see `calibration_log.md` #045).
+2. Reconstructs the binary outcome `BS_STRUCTURAL_v1.1 BS2` per hour per Fast triplet (eth_to_pol, pol_to_eth) over the corridor-active window `2025-06-09 18:45 UTC → 2025-12-31 23:59 UTC`, with SLA gating (`SLA_fast = 120 s`).
+3. Loads the locked substrate-shift baseline (`baseline.parquet`, sha-256 recorded), computes hourly shift-magnitude delta per axis, applies per-axis percentile thresholds fit over the non-January 2025 window.
+4. Evaluates the configuration grid against the two Fast-mode outcomes; computes lift, placebo p-value over 500 label permutations.
+5. Applies Benjamini-Hochberg FDR within family and combined; filters at `combined p < 0.05` and `lift ≥ 1.5×`.
+6. Writes the signable JSON output.
+
+The execution counters are:
+
+| Field | Value |
+|---|---|
+| Paired ETH-POL messages | 6 583 |
+| `mode_requested = 'fast'` (post v1.1 classifier) | 3 098 |
+| `bs2_eth_to_pol_fast` evaluable hours (n_eligible ≥ 5) | 4 |
+| `bs2_pol_to_eth_fast` evaluable hours (n_eligible ≥ 5) | 2 |
+| Configuration grid total | 784 |
+| Configurations at raw `placebo_p < 0.05` | 0 |
+| Configurations surviving BH within-family FDR `α = 0.05` | 0 |
+| Configurations surviving combined FDR AND lift ≥ 1.5× | 0 |
+| Survivor set | `[]` (empty) |
+
+The output JSON `BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2.json` is locked: three Ed25519 signatures under namespace `invarians_calibration_bs_structural_precursors_v1_output` (`signatures/BS_STRUCTURAL_PRECURSORS_ETH_POL_CCTP_V2.json.sig.{1,2,3}`), each OpenTimestamps-anchored on Bitcoin.
+
+**Reading**
+
+The empty survivor set is a legitimate outcome explicitly anticipated in the pre-engagement §10.2. Two independent constraints produce it:
+
+1. **The outcome is rare.** Over 4 968 hours of corridor-active window, only six hours present a Fast-mode sample sufficient (n_eligible ≥ 5) to evaluate `BS_STRUCTURAL_v1.1 BS2`. The 1-hour aggregation window combined with the corpus-2025 Fast-traffic profile leaves most hours under the sample-sufficiency threshold. The pre-engagement §8 power flags `INSUFFICIENT_POWER` apply to every configuration in the grid, which excludes them from the FDR family.
+
+2. **Where evaluable, the outcome is BS2 in 100 % of the cases.** All four hours of `bs2_eth_to_pol_fast` and both hours of `bs2_pol_to_eth_fast` are positive. This pattern is consistent with the sample-sufficiency gate selecting precisely the high-traffic hours, which coincide with windows of stress on the corridor, but the sample size precludes any lift estimation against substrate-shift predictors.
+
+The structural interpretation, conditional on this run, is:
+
+```
+On the 2025 ETH-POL CCTP V2 corpus and under BRIDGE_STATE_STRUCTURAL_v1.1 with
+the corpus-2025 Fast-traffic profile, substrate-shift configurations on ETH or POL
+do not show statistically validated predictive lift against the protocol-contract
+BS2 outcome.
+```
+
+This result does **not** disprove a relationship; it documents the absence of detectable lift under the pre-engaged statistical protocol on this particular corpus, with this particular outcome definition, with this particular 1-hour window, with this Fast-traffic volume. A higher-volume corridor, a longer aggregation window, or a different outcome definition may yield non-empty survivors. Each such variant requires its own locked pre-engagement.
+
+**Discrepancy on the configuration grid total — recorded for transparency**
+
+The pre-engagement document §5 lists `Total: 768 configurations`, computed as `F0 (480) + F1 (128) + F4 (160)`. The script enumerates 784 configurations:
+
+- `F0` = 10 axes × 3 pctl × 2 K × 4 lead × 2 outcomes = 480 (matches the spec).
+- `F1` = 14 (group, threshold) combinations × 2 K × 4 lead × 2 outcomes = 224. The textual description of the grid lists eight group definitions each carrying one or more voting thresholds, summing to fourteen (group, threshold) pairs. The arithmetic in the spec collapses this to `8 × …` and produces 128 instead of 224.
+- `F4` = 2 cross-chain groups × 5 axes × 2 K × 4 lead × 1 outcome (fixed by cross-chain pair) = 80. The spec text says `× 2 outcomes` whereas the F4 construction by design pins the outcome to the partner chain (ETH-axes predict the pol_to_eth outcome; POL-axes predict the eth_to_pol outcome). The factor 2 outcomes is therefore incorrect; the correct count is 80, not 160.
+
+The grid **definition** by family (axes, pctl, K, lead, outcomes, voting thresholds) is correctly described in the pre-engagement. Only the per-family arithmetic and the total are mis-summed. The script implements the grid definition literally and reports 784 in the signed JSON output.
+
+The discrepancy is recorded here and not amended back into the pre-engagement document: the v1.0 SHA-256 anchored on Bitcoin remains the cryptographic record of what was committed to before the run. An amended `BS_STRUCTURAL_PRECURSORS_v1.0.1` may be published to correct the arithmetic prose; it would not affect the survivor set, which is empty independently of the count.
+
+**Implications**
+
+1. The hypothesis that the substrate matrix on Ethereum or Polygon anticipates protocol-contract violations on the ETH-POL CCTP V2 corridor — within the per-engaged statistical machinery on this corpus — is not supported.
+2. The earlier finding of nineteen substrate-shift candidates against the latency-derived outcome (cf. `corpus-2025/eth-pol-CCTP-v2/` matrix-and-drift publication) is operationally on a different signal: the substrate may anticipate latency anomalies; it does not — on this corpus — anticipate the binary protocol-contract violation defined by `BRIDGE_STATE_STRUCTURAL_v1.1`.
+3. Other CCTP V2 corridors (ETH-ARB, ETH-BASE, ETH-OP rollup; ETH-AVAX, ETH-SOL L1-to-L1) have not been evaluated; each requires its own locked corpus and its own pre-engaged protocol.
+
+**Status:** Locked and published. The signed empty survivor set is the final result for the 2025 ETH-POL CCTP V2 corpus under `BS_STRUCTURAL_PRECURSORS_v1`.
+**Confidence:** N/A on individual predictions (survivor set empty); HIGH on the methodological discipline of the run (every choice locked Ed25519 + OpenTimestamps Bitcoin-anchored before execution).
+**Limitation:** Statistical power is intrinsically limited by the sparsity of evaluable hours (6 of 4 968). A protocol variant on a wider aggregation window, or on a longer-corpus successor (e.g. 2026 once accumulated), or on a more permissive sample-sufficiency floor would change the power profile and may yield different survivors. None of these variants is part of the present protocol.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

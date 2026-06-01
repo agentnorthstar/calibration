@@ -1,0 +1,26 @@
+{
+  "calibration_window_end_utc": "2025-12-31T23:59:00Z",
+  "calibration_window_start_utc": "2025-06-09T18:45:00Z",
+  "classifier_semantics": "min_finality_threshold_requested==0 \u2192 'other' (excluded); 1..=1000 \u2192 'fast'; ==2000 \u2192 'standard'; else \u2192 'other'",
+  "corpus_reference": "ETH-POL-CCTP-V2 publiable corpus, MANIFEST.md sha-256 753c9457c1efa665fa57fbfe2d355e59a7aab29468f6a6ddd38894625fc4df3f",
+  "input_parquets_sha256": {
+    "baseline.parquet": "85d15a681fe57e603d66aea353b75637a290dbe545f16109c0d244659a62b3d5",
+    "cctp_v2_events_2025_raw.parquet": "6da1efe76086d7fbb5c6492760283a985c0f0d8bc06d1b61893e4746ca853871"
+  },
+  "n_configurations_fdr_within_family": 0,
+  "n_configurations_raw_p_lt_005": 0,
+  "n_configurations_total": 784,
+  "n_survivors_combined_fdr_and_lift": 0,
+  "outcome_definition": "BRIDGE_STATE_STRUCTURAL_v1.1 BS2 (success_rate < 0.995 OR mode_fallback_rate > 0.05) gated by SLA_fast=120s, SLA_standard=7200s, restricted to mode_requested \u2208 {fast}",
+  "outcome_positive_rate_per_hour": {
+    "bs2_eth_to_pol_fast": 1.0,
+    "bs2_pol_to_eth_fast": 1.0
+  },
+  "outcomes_evaluated": [
+    "bs2_eth_to_pol_fast",
+    "bs2_pol_to_eth_fast"
+  ],
+  "protocol_version": "BS_STRUCTURAL_PRECURSORS_v1",
+  "script_sha256": "6e5889e0f1190216235fbbe5b996164eaf918d407c5123ccda70ad86a9ed482c",
+  "survivors": []
+}
