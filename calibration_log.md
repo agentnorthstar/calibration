@@ -2321,5 +2321,80 @@ All previously reported BS2 verdicts on the BASE corridors and on ethereum-polyg
 
 ---
 
+## Entry #047: Substrate-shift precursors — distinction between latency outcome and `BS_STRUCTURAL_v1.1 BS2` outcome
+
+**Type:** Methodological clarification, no code change, no migration. Records the disposition of two existing families of substrate-shift precursors against the new bridge-state definition, and announces a forthcoming pre-engagement protocol for the structural outcome.
+**Surface:** documentation only. Affects `bridge_state_methodology.md` v1.1 §6 interpretation, the seven Delta-v3 precursors seeded by `migration_delta_precursors_v3.sql` in production, the nineteen substrate-shift candidates published in the matrix-and-drift article on the ETH-POL CCTP V2 corpus, and a new protocol to be locked.
+**Trigger:** The transition of the bridge-state definition from `BS_CALIBRATION_v1` (statistical P97 on attestation latency, Entry #043 supersession) to `BRIDGE_STATE_STRUCTURAL_v1.1` (mechanical invariants with SLA gating on the denominator, Entry #043 and #044) changes the outcome variable that substrate-shift precursors are calibrated against. Two distinct cohorts of precursors are documented in this repository: the seven Delta-v3 precursors on Arbitrum (6) and Optimism (1), and the nineteen substrate-shift candidates on ETH-POL CCTP V2. Both cohorts were calibrated against latency-derived outcomes. Their continued exposure in the production API and on the public site requires an explicit disposition.
+
+---
+
+**Reasoning**
+
+A substrate-shift precursor is a configuration that maps a substrate-matrix observable on Ethereum or on the destination chain to a binary alert at hour `t`, paired with an outcome label at hour `t + lead`. The outcome label is what the precursor is calibrated to anticipate. Three outcomes are present in the repository:
+
+```
+outcome (A)  latency_high_only        the corridor's hourly p90 attestation latency
+                                       exceeds a corpus-derived percentile threshold
+
+outcome (B)  bs2_only                  the legacy BS_CALIBRATION_v1 (statistical P97) BS2
+                                       on the corridor's hourly p90 attestation latency
+
+outcome (C)  bridge_*_to_*             a directional latency-derived outcome on the corridor
+                                       (e.g. fast_pol_to_eth_stressed = p90 > 300 s)
+
+outcome (D)  BS_STRUCTURAL_v1.1 BS2    the new mechanical outcome (success_rate < 0.995 OR
+                                       mode_fallback_rate > 0.05, SLA-gated)
+```
+
+The seven Delta-v3 precursors carry `outcome_category` in {`latency_high_only`, `bs2_only`, `bridge_arb_to_eth`, `bridge_stress_full`}. All four are variants of outcomes (A), (B), (C) — none target outcome (D). The nineteen ETH-POL substrate-shift candidates target a derivative of (C): `fast_<direction>_stressed` and `standard_<direction>_stressed` defined as `p90_latency > 300 s` and `p90_latency > 3600 s` respectively. None target outcome (D) either.
+
+Outcome (D) is the operationally-relevant outcome under `BRIDGE_STATE_STRUCTURAL_v1.1`. A precursor that anticipates outcome (A) anticipates a latency anomaly; a precursor that anticipates outcome (D) anticipates a protocol-contract violation. The two are correlated but not equivalent: a fast message that attests slowly within its envelope produces an outcome-(A) positive but an outcome-(D) negative; a fast message that escalates to Standard produces an outcome-(D) positive even at nominal latency.
+
+**Disposition retained — option A (immediate, no statistical re-run)**
+
+The seven Delta-v3 precursors and the nineteen ETH-POL substrate-shift candidates are **requalified as candidate inputs to a separate, narrower precursor surface** denoted `LATENCY_PRECURSOR_v1`. This surface is defined as:
+
+```
+LATENCY_PRECURSOR_v1.firing(t, corridor, direction, mode)
+  ≡ corridor's hourly p90 attestation latency at t exceeds the corpus-2025 P97
+    of the triplet's non-null hourly p90 distribution
+    (the four thresholds locked in BS_CALIBRATION_ETH_POL_CCTP_V2.json under
+     the BS_CALIBRATION_v1 protocol, signed Ed25519 ×3 and OpenTimestamps Bitcoin-anchored)
+```
+
+The seven and nineteen precursors remain statistically valid against their original outcome — the requalification is a renaming of their operational role, not a change of their pre-engaged statistics. Their `lift`, `baseline_p_adj`, `baseline_precision` fields stay identical. The labels `outcome_category` and `bridge_corridor` are interpreted as the latency-derived outcome family henceforth referred to as `LATENCY_PRECURSOR_v1`.
+
+The production API exposure of these precursors (the `precursors[]` array on `L2Entry`) continues unchanged until a separate decision is taken. Consumers reading them must understand they predict latency anomalies on the corridor, not `BRIDGE_STATE_STRUCTURAL_v1.1 BS2` events.
+
+**Forthcoming — option B (statistical re-run against outcome D)**
+
+A separate protocol, `BS_STRUCTURAL_PRECURSORS_v1`, is drafted at `PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v1.md` (root of this repository). It defines the statistical re-evaluation of substrate-shift configurations against outcome (D) on the locked 2025 ETH-POL CCTP V2 corpus, using:
+
+- the same ten substrate-shift axes (5 ETH + 5 POL);
+- a configuration grid of 768 entries (480 F0 single-axis, 128 F1 multi-axis grouped, 160 F4 cross-chain) restricted to the two Fast-mode outcomes (Standard-mode outcome is structurally NULL on a 1-hour window per `bridge_state_methodology.md` v1.1 §3.5);
+- Benjamini-Hochberg FDR at α = 0.05, lift ≥ 1.5×, 500 placebo permutations;
+- explicit power flags `LOW_POWER` (<30 positive outcomes) and `INSUFFICIENT_POWER` (<10, excluded from FDR family).
+
+The protocol explicitly acknowledges that the empirical positive rate of outcome (D) on the 2025 corpus is unknown at lock time, and accepts the empty survivor set as a possible legitimate outcome. The script `scripts/compute_bs_structural_precursors_v1.py` implements the protocol and is signable independently.
+
+When (and only when) the protocol is signed Ed25519 + OpenTimestamps anchored and the script is executed against the locked corpus, the resulting survivor set (zero or more substrate-shift configurations) will be exposed in the production API as `bs_structural_precursors[]` distinct from the existing `precursors[]`. Until then, no new precursor field is added.
+
+**Forthcoming — extension to other CCTP V2 corridors**
+
+`BS_STRUCTURAL_PRECURSORS_v1` is scoped to ETH-POL CCTP V2. The extension to ETH-ARB, ETH-BASE, ETH-OP CCTP V2 (rollup destinations) and to ETH-AVAX, ETH-SOL CCTP V2 (L1-to-L1 destinations) requires a per-corridor 2025 corpus that does not yet exist in the repository. Each successor corpus will trigger a successor pre-engagement (`BS_STRUCTURAL_PRECURSORS_v1_eth_arb`, etc.). This entry does not commit to a timeline for those corpora.
+
+**Action taken**
+
+- Disposition (option A) recorded in this entry. No production database change. No SDK change. No methodology amendment.
+- `PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v1.md` produced at the root of this repository, locked with three Ed25519 signatures in namespace `invarians_calibration_bs_structural_precursors_v1` (signatures and OpenTimestamps Bitcoin proofs at `signatures/PRE_ENGAGEMENT_BS_STRUCTURAL_PRECURSORS_v1.md.sig.{1,2,3}`).
+- `scripts/compute_bs_structural_precursors_v1.py` produced under `corpus-2025/eth-pol-CCTP-v2/scripts/` (in the corpus repository), not yet executed. Its SHA-256 will be embedded in the signed output JSON when the protocol is locked and executed.
+
+**Status:** Methodological clarification recorded. Production state unchanged. Protocol B drafted, awaiting lock and execution.
+**Confidence:** N/A (this entry contains no statistical claim of its own).
+**Limitation:** The cohabitation of `LATENCY_PRECURSOR_v1` (existing) and `BS_STRUCTURAL_PRECURSORS_v1` (forthcoming) creates two precursor surfaces in the API design space. Consumers must distinguish: latency precursors predict latency anomalies; structural precursors predict protocol-contract violations. The two are co-existing, not substitutes. A future decision may restrict the public API to one surface, but that decision is not part of this entry.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*
