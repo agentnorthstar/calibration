@@ -2060,5 +2060,64 @@ The shipped artefacts cover three legitimate audit needs:
 
 ---
 
+## Entry #043: Bridge state methodology rewritten from statistical to structural — `BRIDGE_STATE_STRUCTURAL_v1` locked
+
+**Type:** Methodology change, supersedes the prior P97-on-latency approach for CCTP V2 and CCIP V1.5 / V1.6 surfaces (Entry #036 for CCTP V1, the ETH-POL CCTP V2 protocol identifier `BS_CALIBRATION_v1` for V2). Prepares a coordinated migration of `bridge_thresholds` rows and the Edge Function classification rule.
+**Surface:** `bridge_state_methodology.md` (root of this repository), prospective changes to `bridge_thresholds` schema usage, Edge Function `attestation/index.ts`, SDK Python.
+**Trigger:** Internal audit identified that the prior approach — computing a P97 quantile on `attestation_latency_p90_s` over a corpus window and labeling the binary classification a *bridge state* — is conceptually a *Bridge Latency State*, not a *Bridge Reliability State*. The externally testable outcomes attached to Element 2 (BS1/BS2 stability) are *attestation failure rate, fast-mode fallback rate, stuck-funds events* — not latency in any quantile. The protocol identifier of the prior CCTP V2 calibration, `BS_CALIBRATION_v1` (Ed25519-signed, OpenTimestamps-anchored, with four mode-suffixed thresholds seeded on ETH-POL CCTP V2: 1132.79 s, 12201.56 s, 1115.15 s, 78523.85 s), is preserved as a candidate *latency precursor* under a successor protocol `LATENCY_PRECURSOR_v1`, to be validated by independent empirical lift against the structural BS2 outcome defined below.
+
+---
+
+**Reasoning**
+
+A bridge state classification labelled BS1 or BS2 must answer the proposition the consuming agent actually decides on. For RWA cross-chain settlement workflows, that proposition is *the transfer will settle within its contractual envelope*. A P97 quantile on latency answers a different proposition: *the latency on this aggregation window lies in the upper tail of the 2025 distribution of latencies*. The two are not equivalent.
+
+The cross-chain protocols Invarians observes — CCTP V2 (Circle ECDSA attestation) and CCIP V1.5 / V1.6 (Chainlink DON consensus) — both expose a set of contractual invariants that, when violated, constitute a real failure of the transfer to honor its envelope. These invariants are observable on the existing aggregation rows (`ans_cctp_v2_route_signals`, `ans_ccip_messages`). They are binary or near-binary by protocol design, not statistical distributions.
+
+For CCTP V2 the four invariants are:
+
+| # | Invariant | Observable | Pre-engaged tolerance |
+|---|---|---|---|
+| I1 | Attestation delivered | `attestation_success_rate` | `>= 0.995` |
+| I2 | Requested mode honored | `mode_fallback_rate` | `<= 0.05` |
+| I3 | Instrument valid | `confounded_by_iris_downtime` | `== false` |
+| I4 | Sample sufficient | `n_observations` | `>= 5` |
+
+For CCIP V1.5 / V1.6 the four invariants are symmetric: `execution_success_rate_1h >= 0.995`, `rmn_cursed == false`, instrument validity, minimum sample size.
+
+The tolerances are pre-engaged mechanically. `0.995` is the institutional infrastructure SLA tier-1 floor (four nines target, three-and-a-half nines tolerance for the 1-hour window). `0.05` on `mode_fallback_rate` is the operational margin admitting one Fast-to-Standard escalation per twenty requests, consistent with Circle CCTP V2 documentation framing the fallback as a *rare high-load event*. `n_observations >= 5` is the minimum sample below which a single failure ratio (0.20) is noise rather than signal. The tolerances are committed in the methodology document prior to observing any of the observables on the production database or on the 2025 corpus; any adjustment requires rotation to a successor protocol with its own pre-engagement signature.
+
+The state computed by AND-conjunction of the holding invariants is mode-agnostic at the level of the `BridgeEntry.id` exposed in the API: a single corridor `ethereum-polygon/cctp` resolves to `BS1`, `BS2`, or `UNAVAILABLE` based on whether the latest aggregation row for that corridor satisfies all invariants. The four mode-suffixed rows previously seeded under `BS_CALIBRATION_v1` are retired from `bridge_thresholds`.
+
+**Action taken**
+
+- Methodology `BRIDGE_STATE_STRUCTURAL_v1` produced at `bridge_state_methodology.md`, root of this repository, version 1.0. Locked with three independent Ed25519 signatures in namespace `invarians_calibration_bridge_state_structural_v1` (`signatures/bridge_state_methodology.md.sig.{1,2,3}`, public keys at `signatures/public_keys/ed25519_bs_structural_v1_{1,2,3}.pub`) and OpenTimestamps-anchored on Bitcoin (`signatures/bridge_state_methodology.md.sig.{1,2,3}.ots`).
+- The methodology covers CCTP V2 (§3) and CCIP V1.5 / V1.6 (§4) uniformly, with explicit deferral of a fifth burn-to-mint reorg-tracking invariant to `v1.1`.
+- The four P97 latency thresholds previously seeded under `BS_CALIBRATION_v1` are reclassified as candidate inputs to `LATENCY_PRECURSOR_v1`, retained in their signed corpus output `corpus-2025/eth-pol-CCTP-v2/results/BS_CALIBRATION_ETH_POL_CCTP_V2.json` (Ed25519 + OpenTimestamps anchored, see prior commit `00006eb` on `corpus-2025/eth-pol-CCTP-v2/`) as pre-validation artefact, not as production-deployed signal.
+
+**Action pending (deployment phase, post-lock)**
+
+- Migration SQL: DELETE the four mode-suffixed rows (`ethereum-polygon/cctp/fast`, `ethereum-polygon/cctp/standard`, `polygon-ethereum/cctp/fast`, `polygon-ethereum/cctp/standard`), restore the two mode-agnostic rows (`ethereum-polygon/cctp`, `polygon-ethereum/cctp`) with `calibrated = true`, `calibration_method = 'BRIDGE_STATE_STRUCTURAL_v1'`, `threshold_bs1_s = NULL`.
+- Refactor Edge Function `attestation/index.ts` to evaluate the four CCTP V2 invariants on the latest `ans_cctp_v2_route_signals` row per corridor, classifying `BridgeEntry.state` directly without a per-row threshold lookup. The same refactor applies the four CCIP J-series invariants and lifts CCIP lanes out of the deferred state described in `methodology.md` §13.4.
+- Upgrade SDK to surface a `latency_precursor` field on `BridgeEntry` once `LATENCY_PRECURSOR_v1` is locked, distinct from the structural `state` field.
+
+**Verification protocol for external readers**
+
+```
+ssh-keygen -Y verify -f <allowed_signers> -I invarians_bs_structural_v1_signer_<i> \
+  -n invarians_calibration_bridge_state_structural_v1 \
+  -s signatures/bridge_state_methodology.md.sig.<i> < bridge_state_methodology.md
+
+ots verify signatures/bridge_state_methodology.md.sig.<i>.ots
+```
+
+The signers of `BRIDGE_STATE_STRUCTURAL_v1` are independent of the signers of the prior corpus Step 0/2/3 keys. The three public keys are recorded under `signatures/public_keys/ed25519_bs_structural_v1_{1,2,3}.pub`.
+
+**Status:** Methodology locked and published. Production migration deferred until the migration SQL and Edge Function refactor are produced and applied.
+**Confidence:** HIGH on the methodology design (mechanically justified by protocol contract, not by data distribution). The empirical false-positive / true-positive rate of the rule will be measured against `LATENCY_PRECURSOR_v1` validation and against documented incidents (Polygon Heimdall consensus bugs, USDe cascade) once the rule is deployed on production data.
+**Limitation:** The fifth invariant — `messages_burned == messages_minted` over a cumulative window — is deferred to `BRIDGE_STATE_STRUCTURAL_v1.1` pending the production SQL view that joins source `DepositForBurn` to destination `MessageReceived` by `nonce` over the settlement-bounded window. The current four invariants do not yet capture *stuck funds* as a distinct trigger; they capture upstream attestation and mode-honoring violations that would precede a stuck event.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*
