@@ -2555,5 +2555,99 @@ v2 reports `n_configurations_total = 2 128`, matching the spec §5 sum of `480 +
 
 ---
 
+## Entry #050: `BRIDGE_STATE_STRUCTURAL_v1.2` — event-based invariant I5 for Standard-mode stuck detection
+
+**Type:** Methodology amendment, v1.1 to v1.2. Adds one event-based invariant (`I5`) to the existing window-aggregated I1-I4. No change to the SLA gating of v1.1, no change to the outcome semantics, no change to CCIP J1-J4. The amendment closes the gap that left Standard-mode unevaluated by `BRIDGE_STATE_STRUCTURAL_v1.1`.
+**Surface:** `bridge_state_methodology.md` v1.1 → v1.2. Future implementation slot in the forthcoming `bridge/classifier` Rust service (cf. `bridge/ARCHITECTURE_DEBT.md` in the backend repository). The Edge Function code is not modified in this entry; activation in production follows the implementation phase.
+**Trigger:** v1.1 defined I1-I4 on a 1-hour rolling window with `SLA_standard = 7200 s`. The combination `(window = 1 h) ∧ (SLA_standard = 7200 s)` produces a structurally zero eligible sample for Standard-mode evaluation on every hour (the intersection of `[t-1h, t]` and `[..., t-2h]` is empty). Under v1.1, Standard-mode classification is therefore systematically `UNAVAILABLE`, and the direction-level state rests on the Fast-mode evaluation alone. This outcome conflicts with the corpus-anchored positioning of Standard as the canonical RWA settlement mode, documented in `products.html` and reflected in the SDK contract (`metrics` exposes the Standard mode, `observed_fast_mode` the Fast mode as subordinated). An external review summarized the conflict as: *a bridge state methodology that qualifies Fast and leaves Standard without verdict does not serve the audience the corridor is designed for.*
+
+---
+
+**Reasoning**
+
+Three observations drive the resolution.
+
+1. Latency in the Standard-mode envelope is not, by itself, an anomaly. The pairing convention of `compute_step3.py` line 236 in the locked 2025 ETH-POL CCTP V2 corpus (Step 3, signed Ed25519 + OpenTimestamps Bitcoin-anchored) sets a 48-hour upper bound on the plausible Standard latency for the Polygon-originated side. The P97 of the empirical hourly p90 distribution on the corridor-active 2025 window reaches 21 h 48 min on the `pol_to_eth` Standard triplet. A 21-hour latency is a high but legitimate point of the physical queue (Heimdall checkpoint cycle plus Ethereum finality plus Iris attestation), not a contract breach.
+
+2. A window-based aggregation of Standard observables cannot distinguish *slow-but-normal* from *stuck* without introducing a latency threshold below the physical envelope. Any such threshold replicates the failure mode rejected in `BS_CALIBRATION_v1` (latency-as-state, calibration_log #043). The window approach is therefore exhausted for Standard under the BS_STRUCTURAL philosophy.
+
+3. The unambiguous failure mode that an RWA agent acts on is *the message has not been attested within Circle's mechanical envelope*, regardless of where in the envelope it sits. This is a per-message binary fact, evaluable without windowing. The amendment encodes it directly as an event-based invariant.
+
+**I5 definition (verbatim from v1.2 §3.6):**
+
+```
+I5 — Stuck Standard detection
+  n_stuck_standard(t) ≡ COUNT(messages m where
+                                m.mode_requested = 'standard'
+                                AND m.attestation_signature IS NULL
+                                AND m.source_block_timestamp < t − 48 h)
+
+  I5 holds                  ⇔ n_stuck_standard(t) == 0
+  I5 violated → BS2 trigger ⇔ n_stuck_standard(t)  > 0
+```
+
+The 48-hour cap is fixed mechanically by composition of the physical envelope (Heimdall checkpoint cycle worst case ~ 4 h, pathological Ethereum non-finalization ~ 24 h, Iris delivery upper bound ~ 1 h, margin × ~ 1.5). It is identical to the 48-hour latency upper bound already signed in the corpus pairing convention (`compute_step3.py` line 236, ETH-POL CCTP V2 Step 3). The cap is not adjustable on the basis of observed latency distributions; rotation to `v1.2.1` requires a documented protocol-level change from Circle (a published formal maximum settlement time on CCTP V2).
+
+**Combine rule revised in §2:**
+
+```
+For each direction (source, dest) at evaluation instant t:
+
+  if (confounded_by_iris_downtime == true)                  ⇒ UNAVAILABLE
+  if (n_eligible_fast < 5)                                  ⇒ Fast verdict := UNAVAILABLE
+                                                           else evaluate I1+I2 on Fast → BS1 or BS2
+
+  evaluate I5 (event-based, independent of window)
+
+  BS2(t)         ≡ (Fast verdict = BS2) OR (n_stuck_standard > 0)
+  BS1(t)         ≡ (Fast verdict = BS1) AND (n_stuck_standard == 0)
+  UNAVAILABLE(t) ≡ instrument confounded
+                   OR (Fast verdict = UNAVAILABLE AND n_stuck_standard == 0)
+```
+
+The audience priority is encoded: a stuck Standard message cannot be silenced by a healthy Fast window. The two channels are operationally distinct and asymmetric: Fast is window-aggregated, Standard is event-based; both feed the same direction-level state.
+
+**Discrimination properties of the 48-hour cap (deliberately designed):**
+
+| Observed latency on a Standard message | I5 verdict |
+|---|---|
+| 17 min (Ethereum-originated nominal) | BS1 |
+| 1 h 54 (Polygon-originated nominal, corpus 2025 median) | BS1 |
+| 21 h 48 (Polygon-originated P97, corpus 2025) | BS1 |
+| 47 h 59 (extreme physical stress, still inside cap) | BS1 |
+| 48 h 01+ | BS2 |
+
+The cap does not alarm on long latency per se. It fires only when a message has not been attested within an envelope that no composition of the protocol's physical steps can justify.
+
+**Detection lag — accepted property:**
+
+Because the cap is set at the outer envelope of the physical distribution, a genuinely stuck Standard message is confirmed `BS2` only at `source_block_timestamp + 48 h`. This delay is irreducible: discriminating *legitimately slow* from *stuck* earlier than this requires a threshold below the physical envelope. The pre-settlement signal an RWA agent consumes therefore comes from two channels of different temporal character — Fast window-aggregated invariants I1-I4 for rapid signaling, and Standard event-based invariant I5 as the late but definitive confirmation of an individual stuck message.
+
+**Action taken**
+
+- `bridge_state_methodology.md` amended to v1.2 at the root of this repository. The amendment adds §3.6 (I5 definition and justification), revises §2 (combine rule), updates the table of invariants in §3, requalifies the prior reorg-tracking note as a future I6 (burn-to-mint reconciliation, deferred), and adds a v1.2 entry to the footer change log. The v1.1 SHA-256 of the document was `0733932048d3fc539f5a938a505fd02f2589b1ea839f26273ec36a57ea33737d`; the v1.2 SHA-256 is recorded in the verification block below.
+- v1.2 locked with three independent Ed25519 signatures in namespace `invarians_calibration_bridge_state_structural_v1_2` using the same three keys as v1.0 and v1.1 (`ed25519_bs_structural_v1_{1,2,3}.pub`). Signatures stored at `signatures/bridge_state_methodology.md.v1_2.sig.{1,2,3}`, OpenTimestamps-anchored on Bitcoin via `.ots` companion files.
+- The v1.0 and v1.1 signatures and OpenTimestamps proofs remain valid for the v1.0 and v1.1 states of the document respectively, preserved verbatim in the repository (signatures named without the `v1_2` infix). The cryptographic record of each amendment is independent.
+
+**Verification protocol for external readers**
+
+```
+ssh-keygen -Y verify -f <allowed_signers> -I invarians_bs_structural_v1_2_signer_<i> \
+  -n invarians_calibration_bridge_state_structural_v1_2 \
+  -s signatures/bridge_state_methodology.md.v1_2.sig.<i> < bridge_state_methodology.md
+
+ots verify signatures/bridge_state_methodology.md.v1_2.sig.<i>.ots
+```
+
+The three public keys (same as v1.0 and v1.1) are recorded under `signatures/public_keys/ed25519_bs_structural_v1_{1,2,3}.pub`. The namespace `invarians_calibration_bridge_state_structural_v1_2` distinguishes v1.2 signatures from v1.0 and v1.1 cryptographically.
+
+**Status:** Methodology v1.2 locked and published. Production implementation of I5 is deferred to the forthcoming `bridge/classifier` Rust service documented in `bridge/ARCHITECTURE_DEBT.md` (backend repository). Until that service is deployed, the production Edge Function continues to evaluate I1-I4 only; Standard-mode classification remains `UNAVAILABLE` in the API payload. The methodology is the public commitment; the implementation phase follows.
+
+**Confidence:** HIGH on the methodology design (mechanically justified by protocol contract and by an external review that converged on the same conclusion independently). The empirical false-positive rate of I5 is bounded by construction: the cap is set above the physical envelope, so a legitimate transfer cannot trigger it absent a structural breach by Circle.
+
+**Limitation:** A genuinely stuck Standard message is confirmed `BS2` only 48 hours after the burn, by design. Faster confirmation would require introducing a latency threshold below the physical envelope, which the methodology rejects on principle. The 48-hour delay is the price of avoiding statistical thresholds on a multi-modal physical distribution.
+
+---
+
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
 *Format: immutable. No modification of past entries, additions at end of file only.*

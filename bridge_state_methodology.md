@@ -1,6 +1,6 @@
 ---
 title: "Invarians — Bridge State Methodology (CCTP V2 and CCIP V1.5 / V1.6)"
-version: "1.1"
+version: "1.2"
 status: published
 audience: [ai-agents, developers, researchers, auditors]
 ---
@@ -39,22 +39,36 @@ Circle's CCTP V2 protocol commits the following contractual properties on each c
 
 The four invariants below capture this contract on the 1-hour aggregation window already produced by `bridge/cctp-v2-collector/src/aggregator.rs` into `ans_cctp_v2_route_signals`:
 
-| # | Invariant | Observable on the row | Pre-engaged tolerance |
+| # | Invariant | Observable | Tolerance / form |
 |---|---|---|---|
-| I1 | Attestation delivered | `attestation_success_rate` | `>= 0.995` |
-| I2 | Requested mode honored | `mode_fallback_rate` | `<= 0.05` |
-| I3 | Instrument valid | `confounded_by_iris_downtime` | `== false` |
-| I4 | Sample sufficient | `n_observations` | `>= 5` |
+| I1 | Attestation delivered (window-aggregated, Fast-eligible) | `attestation_success_rate` on the 1-hour rolling window | `>= 0.995` |
+| I2 | Requested mode honored (window-aggregated, Fast-eligible) | `mode_fallback_rate` on the 1-hour rolling window | `<= 0.05` |
+| I3 | Instrument valid | `confounded_by_iris_downtime` on the current cycle | `== false` |
+| I4 | Sample sufficient | `n_eligible` post-SLA-gating on the 1-hour rolling window | `>= 5` |
+| I5 | No stuck Standard message (event-based, added in v1.2) | `n_stuck_standard` — count of `mode_requested = 'standard'` messages with `attestation_signature IS NULL` and `source_block_timestamp < t − 48 h` | `== 0` |
 
 State transition rules:
 
 ```
-n_observations  < 5                     ⇒ UNAVAILABLE  (rule blocks before any other check)
-confounded_by_iris_downtime == true     ⇒ UNAVAILABLE  (instrument degraded)
-attestation_success_rate >= 0.995
-  AND mode_fallback_rate  <= 0.05       ⇒ BS1
-otherwise                               ⇒ BS2
+For each direction (source, dest) at evaluation instant t:
+
+  if (confounded_by_iris_downtime == true)                  ⇒ UNAVAILABLE
+  if (n_eligible_fast < 5)                                  ⇒ Fast verdict := UNAVAILABLE
+                                                           else evaluate I1+I2 on Fast → BS1 or BS2
+
+  evaluate I5 (event-based, independent of window):
+    n_stuck_standard ≡ count of Standard messages with
+                       attestation_signature IS NULL
+                       AND source_block_timestamp < t − 48 h
+
+  combine:
+    BS2(t)   ≡ (Fast verdict = BS2)  OR  (n_stuck_standard > 0)
+    BS1(t)   ≡ (Fast verdict = BS1)  AND (n_stuck_standard == 0)
+    UNAVAILABLE(t)  ≡ instrument confounded
+                      OR (Fast verdict = UNAVAILABLE AND n_stuck_standard == 0)
 ```
+
+The combine rule encodes the audience priority: Standard is the canonical RWA mode and its breach (stuck) cannot be silenced by a healthy Fast window; Fast is the rapid-cycle observable that drives the pre-settlement signal when Standard is nominal. The two channels are operationally distinct and asymmetric by design: Fast is window-aggregated (1-hour rolling), Standard is event-based (per-message, no window).
 
 ### Justification of each tolerance (mechanical, not data-derived)
 
@@ -105,13 +119,70 @@ mode_fallback_rate    = n_fast_escalated / n_fast_resolved     (NULL if n_fast_r
 
 The invariant `n_observations >= 5` of I4 is interpreted on `n_eligible`, not on the raw window count: with the gating, fewer messages are eligible for the computation, and the sample-sufficiency check applies to the post-gating denominator. When `n_eligible < 5`, the row contributes `UNAVAILABLE` to the direction's verdict.
 
-The 1-hour aggregation window of the collector is retained as the *temporal scope* of all other observables (latency percentiles, message counts, fee distributions). The SLA gating modifies only the denominator of I1 and I2; the window itself is unchanged. A consequence is that Standard-mode classification can be `UNAVAILABLE` on low-volume corridors where the count of messages older than `SLA_standard` within a 1-hour window is below five: the direction's verdict then rests on the Fast-mode evaluation alone, which is the intended behavior and is consistent with the combine rule of §2.
+The 1-hour aggregation window of the collector is retained as the *temporal scope* of all other observables (latency percentiles, message counts, fee distributions). The SLA gating modifies only the denominator of I1 and I2; the window itself is unchanged. A consequence is that Standard-mode classification can be `UNAVAILABLE` on low-volume corridors where the count of messages older than `SLA_standard` within a 1-hour window is below five. Under v1.1 this leaves Standard without a structural verdict; this gap is closed in v1.2 by the event-based invariant I5 defined in §3.6.
 
-### Note on a reorg-tracking invariant
+### 3.6 Event-based invariant I5 — stuck Standard detection (added in v1.2)
 
-### Note on a reorg-tracking invariant
+The Fast-mode classification under I1-I4 is window-aggregated over one hour. Standard mode cannot be evaluated on the same window because the SLA gating (§3.5) makes the post-gating eligible sample structurally zero (`SLA_standard = 7200 s > 3600 s` window). Yet Standard is the canonical RWA settlement mode of the CCTP V2 corridor: hard-finality attestation, ~13-19 minutes nominal envelope on Ethereum-originated transfers, ~30-60 minutes on Polygon-originated transfers (Heimdall checkpoint plus Ethereum finality plus Iris attestation). An Invarians-grade bridge state classification that leaves Standard unevaluated does not serve the audience the corridor is designed for.
 
-A fifth invariant — `messages_burned == messages_minted` over a cumulative window — would close the burn-to-mint settlement loop and is the natural test for the *stuck-funds* outcome named in `SOURCED_NEEDS_BY_AUDIENCE.md` §4. It requires a join between source-side `DepositForBurn` rows and destination-side `MessageReceived` rows over a settlement-bounded window (2 h for Fast, 48 h for Standard, per the pairing convention of `compute_step3.py` §6.1). The capture pipeline already records both events; the join is a forthcoming SQL view, not new instrumentation. The fifth invariant is therefore deferred to `BRIDGE_STATE_STRUCTURAL_v1.1`, which will add it as an additional `BS2` trigger once the view is in production.
+The resolution is event-based, not window-based. Standard is qualified by a binary detection of *contract violation per individual message*, independently of any rolling-window aggregation. The invariant is:
+
+```
+I5 — Stuck Standard detection
+  n_stuck_standard(t) ≡ COUNT(messages m where
+                                m.mode_requested = 'standard'
+                                AND m.attestation_signature IS NULL
+                                AND m.source_block_timestamp < t − 48 h)
+
+  I5 holds                  ⇔ n_stuck_standard(t) == 0
+  I5 violated → BS2 trigger ⇔ n_stuck_standard(t)  > 0
+```
+
+The hard cap `48 h` is pre-engaged and not revisable on the basis of observed latency distributions. Its justification is mechanical, by composition of the physical envelope of the Standard transfer pipeline on the slowest CCTP V2 corridor type (Polygon-originated, with Heimdall checkpoint on the source side):
+
+| Physical component | Pathological worst case |
+|---|---|
+| Heimdall checkpoint cycle on Polygon (source side) | ≈ 4 h under stress |
+| Ethereum finality (two-epoch nominal; pathological non-finalization scenario documented on Holesky 2025-02) | ≈ 24 h |
+| Iris attestation delivery | ≈ 1 h nominal upper bound |
+| Mechanical sum | ≈ 29 h |
+| Margin × ≈ 1.5 | — |
+| **Pre-engaged cap** | **48 h** |
+
+The 48-hour cap is also the latency upper bound used internally by the corpus pairing convention (`compute_step3.py` line 236: `Standard: 48 h`), signed Ed25519 + OpenTimestamps-anchored on Bitcoin as part of the ETH-POL CCTP V2 Step 3 corpus. v1.2 inherits the same numerical anchor for structural consistency between corpus reconstruction and live classification.
+
+**Discrimination properties of the cap, deliberately designed:**
+
+| Observed latency on a Standard message | Verdict from I5 |
+|---|---|
+| 17 min (Ethereum-originated nominal) | BS1 (well below cap; nominal envelope) |
+| 1 h 54 (Polygon-originated nominal, corpus 2025 median) | BS1 (nominal envelope) |
+| 21 h 48 (Polygon-originated P97, corpus 2025) | BS1 (legitimate tail of the physical distribution) |
+| 47 h 59 (extreme physical stress, still inside cap) | BS1 (Circle has not yet exceeded its mechanical envelope) |
+| 48 h 01+ | BS2 (Circle has exceeded the mechanical envelope; the message is structurally stuck) |
+
+The cap does **not** alarm on long latency per se. A 21-hour Standard pol→eth message remains BS1 because the latency belongs to the documented physical queue of the protocol. The cap fires only when a message has not been attested within an envelope that no composition of the protocol's physical steps can justify — at which point Circle's contract is structurally breached on that message, independently of distribution-based estimates.
+
+**Detection lag — accepted property, not a defect:**
+
+Because the cap is set at the outer envelope of the physical distribution, a genuinely stuck Standard message is confirmed `BS2` only at `source_block_timestamp + 48 h`. This delay is irreducible: discriminating *legitimately slow* from *stuck* earlier than this requires a latency threshold below the physical envelope, which by construction reproduces the same false-positive failure mode rejected in `BS_CALIBRATION_v1` (latency-as-state). v1.2 accepts the late but certain confirmation as the cost of avoiding statistically arbitrary thresholds on a multi-modal physical distribution.
+
+The pre-settlement signal an RWA agent consumes therefore comes from two channels of different temporal character:
+
+1. **Fast window-aggregated invariants I1-I4 on the 1-hour rolling window** — rapid signal on the corridor's operational health, evaluable at every aggregation cycle (~10 min in production).
+2. **Standard event-based invariant I5** — late but definitive confirmation of an individual stuck Standard message, no rolling-window dependency.
+
+Both channels feed the same direction-level state through the combine rule of §2.
+
+**Rotation policy on the 48 h cap:**
+
+The 48-hour value is not adjustable on the basis of empirical observation. If Circle publishes a formal Standard maximum settlement time in its CCTP V2 specification, the protocol rotates to `BRIDGE_STATE_STRUCTURAL_v1.2.1` with a fresh pre-engagement signature aligning the cap to the published value. Empirical drift on the corpus does not justify revising the cap; only a documented protocol-level change does.
+
+### Note on a future burn-to-mint reconciliation invariant (I6)
+
+A sixth invariant, conceptually distinct from I5, would close the burn-to-mint settlement loop: `messages_burned == messages_minted` over a cumulative window. Whereas I5 detects a Standard message that has not received an Iris attestation within its physical envelope (Circle has not signed), this proposed I6 detects a message that has been attested but has not been minted on the destination chain (the holder of the attestation has not redeemed). The two failure modes are independent: a message may be attested-but-not-minted (I6) without being unattested-and-late (I5), and vice versa.
+
+I6 requires a join between source-side `DepositForBurn` events and destination-side `MessageReceived` events on a settlement-bounded window (the same 48-hour cap of §3.6). The capture pipeline already records both events; the join is a forthcoming SQL view, not new instrumentation. I6 is deferred to a future `BRIDGE_STATE_STRUCTURAL_v1.3` (or later), with its own pre-engagement signature; v1.2 does not commit to a timeline. The current v1.2 covers Iris-side stuck detection (I5); destination-side mint reconciliation (I6) is out of scope.
 
 ## 4. CCIP V1.5 / V1.6 — invariants and pre-engaged tolerances
 
@@ -200,4 +271,5 @@ The signing acts and the Bitcoin block anchor are the authoritative cryptographi
 
 *v1.0: initial publication — successor to methodology.md §13 (statistical P97-on-latency, retired for CCTP V2 and CCIP V1.5 / V1.6 active scope).*
 *v1.1: §3.5 added — SLA gating on the denominators of I1 (`attestation_success_rate`) and I2 (`mode_fallback_rate`). Pre-engaged SLA values: `SLA_fast = 120 s`, `SLA_standard = 7200 s`. The change closes a denominator bias of v1.0 that counted messages still inside their nominal envelope as defects. I4 (`n_observations >= 5`) is now applied to the post-gating `n_eligible` count. The 1-hour aggregation window is unchanged.*
+*v1.2: §3.6 added — event-based invariant I5, stuck Standard detection. The Fast-mode classification under I1-I4 is window-aggregated; the Standard-mode classification under I5 is event-based on individual messages without rolling-window dependency. The pre-engaged cap is 48 hours, mechanically justified by composition of the physical envelope of the slowest CCTP V2 corridor (Polygon-originated) and aligned with the corpus pairing convention of `compute_step3.py`. A Standard message with `attestation_signature IS NULL` and `source_block_timestamp < t − 48 h` triggers BS2 on the direction, independently of the Fast-mode window verdict. Combine rule of §2 revised to compose Fast (window) and Standard (event) into a single direction-level state. The cap is not adjustable on the basis of observed latency distributions; rotation to v1.2.1 requires a documented protocol-level change from Circle.*
 *Lock condition: three Ed25519 signatures + OpenTimestamps Bitcoin stamp, before any production migration referencing `BRIDGE_STATE_STRUCTURAL_v1` is applied.*
