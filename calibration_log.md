@@ -2647,6 +2647,71 @@ The three public keys (same as v1.0 and v1.1) are recorded under `signatures/pub
 
 **Limitation:** A genuinely stuck Standard message is confirmed `BS2` only 48 hours after the burn, by design. Faster confirmation would require introducing a latency threshold below the physical envelope, which the methodology rejects on principle. The 48-hour delay is the price of avoiding statistical thresholds on a multi-modal physical distribution.
 
+## Entry #051 (2026-07-03): ERRATUM to Entry #035 - observable mismatch in beacon_participation calibration; threshold recalibrated 0.97 -> 0.90
+
+**Type:** Erratum + recalibration (instrument-side incident, production data)
+**Surface:** same as Entry #035 (`v2_l1_regimes`, `l1_thresholds.validator_participation_threshold_low`, `panel.l1[].structural.beacon_participation`), plus `ans_stress_events` downstream.
+
+---
+
+**What Entry #035 got wrong**
+
+1. Observable mismatch. The calibration used 30 days of beaconcha.in
+   `globalparticipationrate`, which is the continuous, stake-weighted
+   ATTESTATION participation (30d min 0.96814). The production sensor
+   measures a different quantity: the PROPOSAL FILL RATE over a 32-block
+   window derived from execution timestamps, participation = 32/(32+missed),
+   quantized in single-missed-slot steps (1.0, 0.9697, 0.9412, ...).
+   Entry #035 calibrated a proxy metric, not the deployed measurand.
+2. Consequence. The 0.97 threshold sits above the single-missed-slot
+   quantum (32/33 = 0.9697). Every window containing exactly one missed
+   proposal, a routine network event, classified S2-.
+3. Real false positive rate. Production distribution over 7 days
+   (1680 windows, 2026-06-25 to 2026-07-02): 87.7% at 1.0000, 11.3% at
+   0.9697, 1.0% at 0.9412, zero windows at 3+ missed. Actual FPR at
+   threshold 0.97: 12.3% per 6.4-min window (about 30 S2- per day),
+   versus the ~0.3% claimed in Entry #035.
+
+**Downstream impact and remediation**
+
+Between 2026-05-04 (stress detector launch) and 2026-07-02, 125 ETH/L1
+stress events carried phantom S2- codes. Each was audited against the
+rhythm_ratio time series: rhythm never crossed its low threshold inside
+any of the 125 event windows, so the beacon was the sole S2- driver.
+Applied: 60 pure phantoms retracted (rows preserved with retracted=true
+and a reason, excluded from the public severity view), 65 genuine
+demand events requalified in place (S2-Dx rewritten to S1Dx,
+classification recomputed), 102 composite links repaired (including
+partner events that had been escalated by overlap with a phantom).
+
+**Recalibration**
+
+Threshold updated to 0.90 (2026-07-02, single transactional UPDATE).
+Rationale: attainable sensor values are discrete; 0.90 triggers at
+4+ missed proposals per window (32/36 = 0.8889), two full quanta below
+the worst routine window observed (2 missed, 0.9412), while documented
+historical incidents (sustained participation 0.92 to 0.96) clear it
+with wide margin. Expected FPR under an i.i.d. 1% miss rate: ~4.6e-4
+per window, about one false flap per 9 days. First night of
+observation: ETH held S1D1 through ~25 one-missed-slot windows, zero
+flaps.
+
+**Shipped with the recalibration**
+
+- Stale-head guard in the sensor: a frozen chain or RPC head now
+  produces an error instead of freezing the last healthy ratio.
+- Sensor documentation corrected: the measurand is the proposal fill
+  rate, not attestation participation; the alert quantum is 4 missed
+  proposals, not 3 as a prior code comment stated.
+
+**Status:** threshold live since 2026-07-02 evening, verified in production.
+**Confidence:** HIGH (production distribution, discrete quanta, incident margins).
+**Lesson:** calibrate against the exact measurand the production sensor
+emits, not a proxy metric sharing its name.
+
+---
+
+
 ---
 
 *Log maintained and updated with each intervention on calibration baselines or parameters.*
